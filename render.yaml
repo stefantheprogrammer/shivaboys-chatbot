@@ -1,0 +1,11 @@
+
+services:
+  - type: web
+    name: sbhc-chatbot
+    env: node
+    buildCommand: cd backend && npm install
+    startCommand: node backend/server.js
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+    autoDeploy: true
