@@ -1,31 +1,29 @@
-
-require('dotenv').config();
 const express = require('express');
-const cors = require('cors');
-const bodyParser = require('body-parser');
-const { Configuration, OpenAIApi } = require('openai');
+const path = require('path');
+const OpenAI = require('openai');
 
 const app = express();
-app.use(cors());
-app.use(bodyParser.json());
-app.use(express.static('public'));
-
-const configuration = new Configuration({
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
-const openai = new OpenAIApi(configuration);
+
+app.use(express.static('public'));
+app.use(express.json());
 
 app.post('/chat', async (req, res) => {
-  const { message } = req.body;
   try {
-    const completion = await openai.createChatCompletion({
+    const userMessage = req.body.message;
+
+    const chatResponse = await openai.chat.completions.create({
       model: 'gpt-4',
-      messages: [{ role: 'user', content: message }],
+      messages: [{ role: 'user', content: userMessage }],
     });
-    res.json({ reply: completion.data.choices[0].message.content });
+
+    const reply = chatResponse.choices[0].message.content;
+    res.json({ reply });
   } catch (error) {
-    console.error(error);
-    res.status(500).send('Error processing your request');
+    console.error('OpenAI error:', error);
+    res.status(500).json({ reply: 'Sorry, something went wrong.' });
   }
 });
 
