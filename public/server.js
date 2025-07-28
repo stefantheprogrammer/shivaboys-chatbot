@@ -7,7 +7,9 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-app.use(express.static('public'));
+// Serve static files from the 'public' folder
+app.use(express.static(path.join(__dirname, 'public')));
+
 app.use(express.json());
 
 app.post('/chat', async (req, res) => {
