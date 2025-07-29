@@ -1,2 +1,6 @@
-# SBHC AI Chatbot
-A secure AI chatbot with voice input/output, hosted via Render.
+# SBHC Groq Chatbot Backend
+
+This is a simple Express backend for Shiva Boys' Hindu College chatbot powered by Groq API.
+
+
+

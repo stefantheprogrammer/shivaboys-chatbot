@@ -1,15 +1,15 @@
 {
-  "name": "shivaboys-chatbot",
+  "name": "sbhc-groq-chatbot",
   "version": "1.0.0",
-  "description": "AI chatbot backend for school website using Groq",
+  "description": "Chatbot backend for Shiva Boys' Hindu College using Groq API",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "axios": "^1.6.7",
-    "body-parser": "^1.20.2",
     "cors": "^2.8.5",
-    "express": "^4.18.2"
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "openai": "^4.10.0"
   }
 }
