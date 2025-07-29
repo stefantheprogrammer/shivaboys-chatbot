@@ -1,39 +1,43 @@
-// server.js
-const express = require('express');
-const cors = require('cors');
-const path = require('path');
-const OpenAI = require('openai');
+const express = require("express");
+const cors = require("cors");
+const bodyParser = require("body-parser");
+const axios = require("axios");
 
 const app = express();
 app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(bodyParser.json());
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const PORT = process.env.PORT || 3000;
 
-app.post('/api/chat', async (req, res) => {
-  const { message } = req.body;
-  if (!message) {
-    return res.status(400).json({ error: 'Message is required' });
-  }
+app.post("/chat", async (req, res) => {
+  const userMessage = req.body.message;
 
   try {
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: message }],
-    });
+    const groqRes = await axios.post(
+      "https://api.groq.com/openai/v1/chat/completions",
+      {
+        model: "llama3-70b-8192",
+        messages: [
+          { role: "system", content: "You are a helpful assistant for a secondary school. Answer clearly and kindly." },
+          { role: "user", content: userMessage }
+        ]
+      },
+      {
+        headers: {
+          "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
+          "Content-Type": "application/json"
+        }
+      }
+    );
 
-    const reply = completion.choices[0].message.content;
-    res.json({ reply });
+    const botReply = groqRes.data.choices[0].message.content;
+    res.json({ reply: botReply });
   } catch (error) {
-    console.error('OpenAI API error:', error);
-    res.status(500).json({ error: 'Failed to get response from OpenAI' });
+    console.error("Groq API error:", error?.response?.data || error.message);
+    res.status(500).json({ error: "Sorry, something went wrong." });
   }
 });
 
-const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });

@@ -1,19 +1,15 @@
 {
   "name": "shivaboys-chatbot",
   "version": "1.0.0",
-  "description": "Backend for Shiva Boys AI Chatbot",
+  "description": "AI chatbot backend for school website using Groq",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
+    "axios": "^1.6.7",
+    "body-parser": "^1.20.2",
     "cors": "^2.8.5",
-    "express": "^4.18.2",
-    "openai": "^4.10.0"
-  },
-  "engines": {
-    "node": ">=18"
-  },
-  "author": "StefanTheProgrammer",
-  "license": "MIT"
+    "express": "^4.18.2"
+  }
 }
