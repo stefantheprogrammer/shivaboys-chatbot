@@ -1,13 +1,17 @@
 (function () {
   const iframe = document.createElement("iframe");
-  iframe.src = window.__CHATBOT_URL__ || "https://shivaboys-chatbot.onrender.com/widget.html";
-  iframe.style.width = "350px";
-  iframe.style.height = "450px";
-  iframe.style.position = "fixed";
-  iframe.style.bottom = "20px";
-  iframe.style.right = "20px";
-  iframe.style.border = "none";
-  iframe.style.borderRadius = "10px";
-  iframe.style.zIndex = "9999";
+  iframe.src = "https://shivaboys-chatbot.onrender.com/widget.html";
+  iframe.style = `
+    width: 350px;
+    height: 450px;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    border: none;
+    border-radius: 10px;
+    z-index: 9999;
+    box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+  `;
   document.body.appendChild(iframe);
 })();
+
