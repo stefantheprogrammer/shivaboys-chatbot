@@ -1,31 +1,25 @@
-const express = require('express');
-const path = require('path');
-const OpenAI = require('openai');
+const express = require("express");
+const path = require("path");
+require("dotenv").config();
+const OpenAI = require("openai");
 
 const app = express();
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Serve static files from the 'public' folder
-app.use(express.static(path.join(__dirname, 'public')));
-
+app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
 
-app.post('/chat', async (req, res) => {
+app.post("/chat", async (req, res) => {
   try {
     const userMessage = req.body.message;
-
     const chatResponse = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: [{ role: 'user', content: userMessage }],
+      model: "gpt-4",
+      messages: [{ role: "user", content: userMessage }]
     });
-
-    const reply = chatResponse.choices[0].message.content;
-    res.json({ reply });
-  } catch (error) {
-    console.error('OpenAI error:', error);
-    res.status(500).json({ reply: 'Sorry, something went wrong.' });
+    res.json({ reply: chatResponse.choices[0].message.content });
+  } catch (err) {
+    console.error("OpenAI error:", err);
+    res.status(500).json({ reply: "Sorry, something went wrong." });
   }
 });
 
