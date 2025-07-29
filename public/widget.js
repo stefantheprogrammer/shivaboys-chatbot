@@ -1,6 +1,6 @@
 (function () {
   const iframe = document.createElement("iframe");
-  iframe.src = "/widget.html";
+  iframe.src = "https://shivaboys-chatbot.onrender.com/widget.html";
   iframe.style = `
     width: 350px;
     height: 450px;
