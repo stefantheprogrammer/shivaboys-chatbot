@@ -6,9 +6,11 @@ const OpenAI = require("openai");
 const app = express();
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
+// Serve static files from public/
 app.use(express.static(path.join(__dirname, "public")));
 app.use(express.json());
 
+// Chat route
 app.post("/chat", async (req, res) => {
   try {
     const userMessage = req.body.message;
@@ -23,5 +25,11 @@ app.post("/chat", async (req, res) => {
   }
 });
 
+// ✅ Root route to fix 404 on /
+app.get("/", (req, res) => {
+  res.send("Shiva Boys Chatbot backend is live.");
+});
+
+// Start server
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
