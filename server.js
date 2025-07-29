@@ -2,22 +2,17 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const { Configuration, OpenAIApi } = require('openai');
+const OpenAI = require('openai');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-// Serve static frontend files from 'public'
 app.use(express.static(path.join(__dirname, 'public')));
 
-// OpenAI setup
-const configuration = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY, // Set this in Render environment variables!
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
-const openai = new OpenAIApi(configuration);
 
-// Chat API endpoint
 app.post('/api/chat', async (req, res) => {
   const { message } = req.body;
   if (!message) {
@@ -25,15 +20,15 @@ app.post('/api/chat', async (req, res) => {
   }
 
   try {
-    const completion = await openai.createChatCompletion({
+    const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: message }],
     });
 
-    const reply = completion.data.choices[0].message.content;
+    const reply = completion.choices[0].message.content;
     res.json({ reply });
   } catch (error) {
-    console.error('OpenAI API error:', error.response?.data || error.message);
+    console.error('OpenAI API error:', error);
     res.status(500).json({ error: 'Failed to get response from OpenAI' });
   }
 });
