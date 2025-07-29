@@ -8,4 +8,4 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // Serve static files from "public"
 app.use(express.static(path.join(__dirname, "public")));
-app.use(express.json());
+app.use(express.json()); 
