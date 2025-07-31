@@ -1,103 +1,141 @@
-const express = require("express");
-const fs = require("fs");
-const path = require("path");
-const cors = require("cors");
-const { Groq } = require("groq-sdk");
+require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
+const fetch = require('node-fetch');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
-const port = process.env.PORT || 10000;
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY || "your-groq-api-key" });
+const PORT = process.env.PORT || 10000;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GROQ_CHAT_MODEL = "llama3-8b-8192";
+const EMBEDDING_MODEL = "nomic-embed-text-v1"; // supported embedding model
 
 app.use(cors());
 app.use(express.json());
 
-// Helper: Load and flatten all documents
-function loadDocuments(folderPath) {
-  const files = fs.readdirSync(folderPath);
-  return files.flatMap((file) => {
-    const filePath = path.join(folderPath, file);
-    const content = fs.readFileSync(filePath, "utf8");
-    try {
-      const json = JSON.parse(content);
-      const items = Array.isArray(json) ? json : json.items;
-      return items.map((item) => ({
-        content: item.text || item.content || JSON.stringify(item),
-        source: file,
-      }));
-    } catch (error) {
-      console.error(`Error parsing ${file}: ${error}`);
-      return [];
+const documents = [];
+const embeddings = [];
+
+// Load and embed documents on startup
+async function loadDocuments() {
+  const dataDir = path.join(__dirname, 'data');
+  const files = fs.readdirSync(dataDir);
+
+  for (const file of files) {
+    const content = fs.readFileSync(path.join(dataDir, file), 'utf-8');
+    const json = JSON.parse(content);
+    for (const doc of json) {
+      const embedding = await getEmbedding(doc.content);
+      if (embedding) {
+        documents.push(doc);
+        embeddings.push(embedding);
+      } else {
+        console.error("❌ Failed to get embedding for:", doc.title);
+      }
     }
-  });
+  }
+  console.log(`Loaded ${documents.length} documents from website data.`);
 }
 
-// Use Nomic embeddings instead of decommissioned Mixtral
 async function getEmbedding(text) {
-  const res = await groq.embeddings.create({
-    model: "nomic-embed-text-v1",
-    input: text,
+  const response = await fetch('https://api.groq.com/openai/v1/embeddings', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${GROQ_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: EMBEDDING_MODEL,
+      input: text
+    })
   });
 
-  if (!res.data || !Array.isArray(res.data) || !res.data[0].embedding) {
-    console.error("❌ Invalid embedding response:", JSON.stringify(res));
+  const data = await response.json();
+
+  if (!data.data || !data.data[0]) {
+    console.error("❌ Invalid embedding response:", JSON.stringify(data));
     return null;
   }
 
-  return res.data[0].embedding;
+  return data.data[0].embedding;
 }
 
-// Load docs and embed them
-let embeddedDocs = [];
-async function initializeEmbeddings() {
-  const docs = loadDocuments(path.join(__dirname, "data"));
-  const embeddings = await Promise.all(
-    docs.map(async (doc) => {
-      const embedding = await getEmbedding(doc.content);
-      return embedding ? { ...doc, embedding } : null;
-    })
-  );
-  embeddedDocs = embeddings.filter(Boolean);
-  console.log("Document embeddings ready.");
-}
-
-// Cosine similarity
 function cosineSimilarity(a, b) {
   const dot = a.reduce((sum, val, i) => sum + val * b[i], 0);
-  const magA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
-  const magB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
-  return dot / (magA * magB);
+  const normA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
+  const normB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
+  return dot / (normA * normB);
 }
 
-// Chat endpoint
-app.post("/chat", async (req, res) => {
-  const { question } = req.body;
-  if (!question) return res.status(400).send({ error: "Missing question" });
+async function getRelevantDocs(query) {
+  const queryEmbedding = await getEmbedding(query);
+  if (!queryEmbedding) return [];
 
-  const userEmbedding = await getEmbedding(question);
-  if (!userEmbedding) return res.status(500).send({ error: "Embedding failed" });
+  const similarities = embeddings.map((emb, i) => ({
+    index: i,
+    score: cosineSimilarity(queryEmbedding, emb)
+  }));
 
-  const ranked = embeddedDocs
-    .map((doc) => ({
-      ...doc,
-      score: cosineSimilarity(userEmbedding, doc.embedding),
-    }))
-    .sort((a, b) => b.score - a.score);
+  similarities.sort((a, b) => b.score - a.score);
+  return similarities.slice(0, 5).map(sim => documents[sim.index]);
+}
 
-  const topDocs = ranked.slice(0, 5);
-  const context = topDocs.map((d) => d.content).join("\n---\n");
+async function generateAnswer(userMessage, contextDocs) {
+  const contextText = contextDocs.map(doc => `- ${doc.content}`).join('\n');
 
-  const prompt = `Use the context below to answer the user's question.\n\nContext:\n${context}\n\nQuestion: ${question}\nAnswer:`;
+  const systemPrompt = `
+You are the AI assistant for Shiva Boys' Hindu College. Answer user queries using both the provided context and your own knowledge, but always prioritize official school info if available.
 
-  const completion = await groq.chat.completions.create({
-    messages: [{ role: "user", content: prompt }],
-    model: "mixtral-8x7b-32768", // or replace if using a different chat model
+Context:
+${contextText}
+`;
+
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${GROQ_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: GROQ_CHAT_MODEL,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage }
+      ]
+    })
   });
 
-  const reply = completion.choices?.[0]?.message?.content;
-  res.send({ answer: reply || "No response" });
+  const data = await response.json();
+
+  if (data.choices && data.choices[0] && data.choices[0].message) {
+    return data.choices[0].message.content.trim();
+  } else {
+    console.error("❌ Chat API error:", data);
+    return "I'm sorry, I couldn't find an answer to your question.";
+  }
+}
+
+app.post('/api/chat', async (req, res) => {
+  const userMessage = req.body.message;
+
+  if (!userMessage) {
+    return res.status(400).json({ error: "Missing 'message' in request body." });
+  }
+
+  try {
+    const relevantDocs = await getRelevantDocs(userMessage);
+    const answer = await generateAnswer(userMessage, relevantDocs);
+    res.json({ answer });
+  } catch (err) {
+    console.error("❌ Error handling request:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 });
 
-initializeEmbeddings().then(() => {
-  console.log("Loaded", embeddedDocs.length, "documents from website data.");
-  app.listen(port, () => console.log(`Server running on port ${port}`));
+loadDocuments().then(() => {
+  console.log("Document embeddings ready.");
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
 });

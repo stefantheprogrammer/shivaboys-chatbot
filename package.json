@@ -1,7 +1,7 @@
 {
   "name": "sbhc-groq-chatbot",
   "version": "1.0.0",
-  "description": "Chatbot backend for Shiva Boys' Hindu College using Groq API and contextual document embeddings",
+  "description": "Chatbot backend for Shiva Boys' Hindu College using Groq API",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -10,8 +10,6 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.18.2",
-    "node-fetch": "^2.6.11",
-    "groq-sdk": "^0.0.8"
-  },
-  "license": "MIT"
+    "node-fetch": "^2.6.11"
+  }
 }
