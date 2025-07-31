@@ -2,17 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
+const fetch = require('node-fetch');
 require('dotenv').config();
 
-const { GroqClient } = require('@groq/client');
-
 const app = express();
-
-const client = new GroqClient({
-  apiKey: process.env.GROQ_API_KEY,
-  model: process.env.GROQ_MODEL || 'mixtral-8x7b-32768',
-});
-
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -25,53 +18,82 @@ fs.readdirSync(DATA_PATH).forEach(file => {
   if (file.endsWith('.json')) {
     const raw = fs.readFileSync(path.join(DATA_PATH, file));
     const doc = JSON.parse(raw);
-    // Combine title and content for retrieval
     doc.text = (doc.title || '') + '\n' + (doc.content || '');
     documents.push(doc);
   }
 });
 
-// Basic cosine similarity helper function for embeddings (if you want to embed locally)
+// Helper: get embedding from Groq
+async function getEmbedding(text) {
+  const response = await fetch('https://api.groq.com/openai/v1/embeddings', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      input: text,
+      model: 'text-embedding-3-small'
+    })
+  });
+
+  const data = await response.json();
+  return data.data[0].embedding;
+}
+
+// Compute cosine similarity
 function cosineSimilarity(vecA, vecB) {
-  const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
+  const dot = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
   const magA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
   const magB = Math.sqrt(vecB.reduce((sum, b) => sum + b * b, 0));
-  return dotProduct / (magA * magB);
+  return dot / (magA * magB);
 }
+
+// Precompute embeddings for all documents
+let documentEmbeddings = [];
+(async () => {
+  documentEmbeddings = await Promise.all(documents.map(doc => getEmbedding(doc.text)));
+})();
 
 app.post('/chat', async (req, res) => {
   const userMessage = req.body.message;
 
   try {
-    // --- Retrieval Augmentation using Groq ---
+    const userEmbedding = await getEmbedding(userMessage);
 
-    // Option 1: Use Groq's built-in RAG endpoint (if available)
-    // e.g. client.complete() with retrieval documents
+    const scored = documents.map((doc, i) => ({
+      doc,
+      score: cosineSimilarity(userEmbedding, documentEmbeddings[i])
+    }));
 
-    // Option 2: If no embedding endpoint, do simple text matching here (or precompute embeddings offline)
-    // For demo: concatenate all docs (or top N) and send as context prompt
+    scored.sort((a, b) => b.score - a.score);
+    const topDocs = scored.slice(0, 3).map(d => d.doc.text).join('\n---\n');
 
-    const contextText = documents.map(d => d.text).join('\n---\n');
+    const systemPrompt = `You are a helpful assistant for Shiva Boys' Hindu College in Trinidad and Tobago. Use ONLY the following extracted information to answer:\n${topDocs}`;
 
-    const prompt = `You are a helpful assistant for Shiva Boys' Hindu College in Trinidad and Tobago.
-Use ONLY the following extracted information from the website to answer user questions:
-${contextText}
-
-User question: ${userMessage}
-Answer:`;
-
-    // Call Groq completion endpoint
-    const completion = await client.complete({
-      prompt,
-      maxTokens: 500,
-      temperature: 0.2,
+    const chatResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'mixtral-8x7b-32768',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userMessage }
+        ]
+      })
     });
 
-    res.json({ response: completion.text.trim() });
+    const result = await chatResponse.json();
+    const reply = result.choices[0]?.message?.content || "Sorry, I didn't understand that.";
+
+    res.json({ response: reply });
 
   } catch (err) {
-    console.error('Error in /chat:', err);
-    res.status(500).json({ error: 'Failed to get response from AI' });
+    console.error('Chat error:', err);
+    res.status(500).json({ error: 'Failed to get response from Groq' });
   }
 });
 

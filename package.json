@@ -7,8 +7,9 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "@groq/client": "^1.0.0",
+    "cors": "^2.8.5",
     "express": "^4.18.2",
-    "cors": "^2.8.5"
+    "node-fetch": "^2.6.11",
+    "dotenv": "^16.4.5"
   }
 }
