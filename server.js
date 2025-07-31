@@ -1,85 +1,94 @@
 import express from 'express';
 import cors from 'cors';
-import dotenv from 'dotenv';
-import { ChatGroq } from '@langchain/groq';
+import cheerio from 'cheerio';
+import https from 'https';
 import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
 import { MemoryVectorStore } from 'langchain/vectorstores/memory';
-import { loadQAStuffChain } from 'langchain/chains';
-import { HuggingFaceTransformersEmbeddings } from '@langchain/community/embeddings/hf_transformers';
+import { HuggingFaceTransformersEmbeddings } from '@langchain/community/embeddings/hf';
+import { ChatGroq } from '@langchain/groq';
+import { RetrievalQAChain } from 'langchain/chains';
 
-dotenv.config();
 const app = express();
-const port = process.env.PORT || 10000;
-
+const PORT = process.env.PORT || 10000;
 app.use(cors());
 app.use(express.json());
 
-let vectorStore;
+console.log('Server running on port', PORT);
 
-async function fetchWebsiteText() {
-  const res = await fetch('https://shivaboys.edu.tt');
+// Step 1: Load website data
+async function fetchWebsiteText(url) {
+  const agent = new https.Agent({ rejectUnauthorized: false }); // Ignore SSL errors
+  const res = await fetch(url, { agent });
   const html = await res.text();
-
-  const plainText = html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ');
-  return plainText.slice(0, 5000); // Optional: limit length for testing
+  const $ = cheerio.load(html);
+  return $('body').text();
 }
 
 async function loadDocuments() {
   console.log('Loading documents...');
-  const rawText = await fetchWebsiteText();
+  const pages = [
+    'https://shivaboys.edu.tt',
+    'https://shivaboys.edu.tt/about.html',
+    'https://shivaboys.edu.tt/index.html',
+    'https://shivaboys.edu.tt/department.html',
+    'https://shivaboys.edu.tt/sixthform.html',
+    'https://shivaboys.edu.tt/students.html',
+    'https://shivaboys.edu.tt/curriculum.html',
+    'https://shivaboys.edu.tt/parents.html',
+    'https://shivaboys.edu.tt/achievements.html',
+    'https://shivaboys.edu.tt/contact.html'
+  ];
 
-  const splitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 500,
-    chunkOverlap: 50,
-  });
-
-  const docs = await splitter.createDocuments([rawText]);
-
-  console.log(`Loaded ${docs.length} documents from website data.`);
-  return docs;
+  const texts = await Promise.all(pages.map(fetchWebsiteText));
+  return pages.map((url, i) => ({
+    metadata: { source: url },
+    pageContent: texts[i]
+  }));
 }
 
-async function createVectorStore(docs) {
-  console.log('Computing embeddings...');
-
-  const embeddings = new HuggingFaceTransformersEmbeddings({
-    modelName: 'Xenova/all-MiniLM-L6-v2',
-  });
-
-  const store = await MemoryVectorStore.fromDocuments(docs, embeddings);
-  return store;
-}
+// Step 2: Create retriever
+let retriever;
 
 async function main() {
-  const documents = await loadDocuments();
-  vectorStore = await createVectorStore(documents);
+  const docs = await loadDocuments();
+
+  const splitter = new RecursiveCharacterTextSplitter({
+    chunkSize: 1000,
+    chunkOverlap: 200
+  });
+
+  const splitDocs = await splitter.splitDocuments(docs);
+
+  const embeddings = new HuggingFaceTransformersEmbeddings({
+    modelName: 'sentence-transformers/all-MiniLM-L6-v2'
+  });
+
+  const vectorStore = await MemoryVectorStore.fromDocuments(splitDocs, embeddings);
+
+  retriever = vectorStore.asRetriever();
   console.log('Document embeddings ready.');
 }
 
-app.post('/ask', async (req, res) => {
-  const question = req.body.question;
+main();
 
-  if (!vectorStore) {
-    return res.status(500).send('Vector store not initialized');
+// Step 3: QA Chain with Groq
+const model = new ChatGroq({
+  apiKey: process.env.GROQ_API_KEY,
+  model: 'llama3-8b-8192'
+});
+
+const chain = RetrievalQAChain.fromLLM(model, retriever);
+
+// Step 4: API endpoint
+app.post('/chat', async (req, res) => {
+  const { question } = req.body;
+  try {
+    const response = await chain.call({ query: question });
+    res.json({ response: response.text });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Something went wrong.' });
   }
-
-  const relevantDocs = await vectorStore.similaritySearch(question, 5);
-
-  const model = new ChatGroq({
-    apiKey: process.env.GROQ_API_KEY,
-    model: 'mixtral-8x7b-32768',
-  });
-
-  const chain = loadQAStuffChain(model);
-  const response = await chain.call({
-    input_documents: relevantDocs,
-    question,
-  });
-
-  res.json({ answer: response.text });
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-  main();
-});
+app.listen(PORT);
