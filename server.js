@@ -1,98 +1,86 @@
-import express from "express";
-import dotenv from "dotenv";
-import fetch from "node-fetch";
-import cheerio from "cheerio";
-
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { HNSWLib } from "langchain/vectorstores/hnswlib";
-import { HuggingFaceInferenceEmbeddings } from "langchain/embeddings/huggingface";
-import { GroqChat } from "@langchain/groq";
-import { ConversationalRetrievalQAChain } from "langchain/chains";
+import express from 'express';
+import cors from 'cors';
+import morgan from 'morgan';
+import dotenv from 'dotenv';
+import fs from 'fs/promises';
+import path from 'path';
+import { HuggingFaceInference } from '@huggingface/inference';
+import { HuggingFaceTransformersEmbeddings } from 'langchain/embeddings/hf';
+import { RetrievalQAChain } from 'langchain/chains';
+import { VectorStoreRetriever } from 'langchain/vectorstores/base';
+import { MemoryVectorStore } from 'langchain/vectorstores/memory';
+import { TextLoader } from 'langchain/document_loaders/fs/text';
+import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
 
 dotenv.config();
-
 const app = express();
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 3000;
 
+app.use(cors());
+app.use(morgan('dev'));
 app.use(express.json());
 
-// Fetch and extract text from website (example: shivaboys.edu.tt)
-async function fetchWebsiteText(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.statusText}`);
-  const html = await res.text();
-  const $ = cheerio.load(html);
-  return $("body").text().replace(/\s+/g, " ").trim();
-}
+const hf = new HuggingFaceInference(process.env.HUGGINGFACE_API_KEY);
 
-async function loadDocuments() {
-  // Example URL(s)
-  const urls = ["https://shivaboys.edu.tt"];
+const embedder = new HuggingFaceTransformersEmbeddings({
+  model: "sentence-transformers/all-MiniLM-L6-v2",
+});
 
-  const texts = [];
-  for (const url of urls) {
-    const text = await fetchWebsiteText(url);
-    texts.push(text);
+let qaChain;
+
+async function init() {
+  const dataDir = './data';
+  const files = await fs.readdir(dataDir);
+
+  const docs = [];
+  for (const file of files) {
+    const filePath = path.join(dataDir, file);
+    const loader = new TextLoader(filePath);
+    const loadedDocs = await loader.load();
+    docs.push(...loadedDocs);
   }
 
   const splitter = new RecursiveCharacterTextSplitter({
     chunkSize: 1000,
-    chunkOverlap: 100,
+    chunkOverlap: 150,
   });
 
-  const docs = await splitter.createDocuments(texts);
-  return docs;
-}
+  const splitDocs = await splitter.splitDocuments(docs);
+  const vectorStore = await MemoryVectorStore.fromDocuments(splitDocs, embedder);
+  const retriever = new VectorStoreRetriever({ vectorStore });
 
-async function main() {
-  console.log("Loading documents...");
-  const docs = await loadDocuments();
-
-  console.log("Creating vector store...");
-  const vectorStore = await HNSWLib.fromDocuments(
-    docs,
-    new HuggingFaceInferenceEmbeddings({
-      model: "hkunlp/instructor-large",
-      apiKey: process.env.HUGGINGFACE_API_KEY,
-    })
+  qaChain = RetrievalQAChain.fromLLM(
+    {
+      llm: {
+        _call: async ({ prompt }) => {
+          const res = await hf.textGeneration({
+            model: "mistralai/Mixtral-8x7B-Instruct-v0.1",
+            inputs: prompt,
+            parameters: { max_new_tokens: 300, temperature: 0.7 },
+          });
+          return res.generated_text || res[0]?.generated_text || "Sorry, I couldn't understand.";
+        }
+      }
+    },
+    retriever
   );
-
-  console.log("Initializing Groq chat...");
-  const chat = new GroqChat({
-    apiKey: process.env.GROQ_API_KEY,
-    model: "gemma-7b-it",
-    temperature: 0,
-  });
-
-  const chain = ConversationalRetrievalQAChain.fromLLM(chat, vectorStore.asRetriever());
-
-  let conversationHistory = [];
-
-  app.post("/chat", async (req, res) => {
-    try {
-      const { question } = req.body;
-      if (!question) return res.status(400).json({ error: "Question is required" });
-
-      const response = await chain.call({
-        question,
-        chat_history: conversationHistory,
-      });
-
-      conversationHistory.push([question, response.text]);
-
-      res.json({ answer: response.text });
-    } catch (error) {
-      console.error("Error in /chat:", error);
-      res.status(500).json({ error: "Internal Server Error" });
-    }
-  });
-
-  app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-  });
 }
 
-main().catch((e) => {
-  console.error("Fatal error:", e);
-  process.exit(1);
+app.post('/ask', async (req, res) => {
+  try {
+    const question = req.body.question;
+    const result = await qaChain.call({ query: question });
+    res.json({ answer: result.text });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Something went wrong' });
+  }
+});
+
+app.get('/', (_, res) => {
+  res.send('Shiva Boys Chatbot API is running.');
+});
+
+init().then(() => {
+  app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
 });
