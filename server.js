@@ -1,79 +1,111 @@
 import express from "express";
-import cors from "cors";
 import dotenv from "dotenv";
-import { ChatGroq } from "@langchain/groq";
-import { HuggingFaceInferenceEmbeddings } from "@langchain/community/embeddings/hf";
-import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { MemoryVectorStore } from "langchain/vectorstores/memory";
-import { RetrievalQAChain } from "langchain/chains";
-import { Document } from "@langchain/core/documents";
 import fetch from "node-fetch";
+import cheerio from "cheerio";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+import { HNSWLib } from "langchain/vectorstores/hnswlib";
+import { OpenAIEmbeddings } from "langchain/embeddings/openai";
+import { ChatOpenAI } from "langchain/chat_models/openai";
+import { ConversationalRetrievalQAChain } from "langchain/chains";
 
 dotenv.config();
 
 const app = express();
-app.use(cors());
-app.use(express.json());
-
 const PORT = process.env.PORT || 10000;
-let chain;
 
 async function fetchWebsiteText(url) {
-  const response = await fetch(url);
-  const html = await response.text();
-  return html.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ");
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.statusText}`);
+    const html = await res.text();
+    const $ = cheerio.load(html);
+
+    // Extract all text from the body, excluding scripts/styles
+    const bodyText = $("body")
+      .find("*")
+      .not("script, style, noscript")
+      .map((_, el) => $(el).text())
+      .get()
+      .join(" ");
+
+    return bodyText.replace(/\s+/g, " ").trim();
+  } catch (error) {
+    console.error("Error fetching website:", error);
+    return "";
+  }
 }
 
 async function loadDocuments() {
-  const urls = [
-    "https://shivaboys.edu.tt/index.html",
-    "https://shivaboys.edu.tt/about.html",
-    "https://shivaboys.edu.tt/administration.html",
-    "https://shivaboys.edu.tt/departments.html",
-    "https://shivaboys.edu.tt/registration.html"
-  ];
-  const documents = [];
-  for (const url of urls) {
-    const text = await fetchWebsiteText(url);
-    documents.push(new Document({ pageContent: text, metadata: { source: url } }));
+  // Replace this URL with your actual school's website URL or a safe URL you want to scrape
+  const url = "https://shivaboys.edu.tt";
+  console.log("Fetching website content from:", url);
+
+  const rawText = await fetchWebsiteText(url);
+  if (!rawText) {
+    throw new Error("Failed to fetch or parse website text.");
   }
-  return documents;
+
+  const textSplitter = new RecursiveCharacterTextSplitter({
+    chunkSize: 1000,
+    chunkOverlap: 200,
+  });
+
+  const docs = await textSplitter.splitText(rawText);
+  return docs.map((text, i) => ({
+    pageContent: text,
+    metadata: { source: `${url}#chunk${i + 1}` },
+  }));
 }
 
 async function main() {
+  console.log("Loading documents...");
   const docs = await loadDocuments();
-  const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 1000, chunkOverlap: 200 });
-  const splitDocs = await splitter.splitDocuments(docs);
 
-  const vectorstore = await MemoryVectorStore.fromDocuments(
-    splitDocs,
-    new HuggingFaceInferenceEmbeddings({
-      apiKey: process.env.HF_API_KEY,
-      model: "sentence-transformers/all-MiniLM-L6-v2"
-    })
-  );
+  console.log("Creating vector store...");
+  const vectorStore = await HNSWLib.fromDocuments(docs, new OpenAIEmbeddings());
 
-  const model = new ChatGroq({
-    apiKey: process.env.GROQ_API_KEY,
-    model: "llama3-8b-8192"
+  console.log("Initializing chat model...");
+  const model = new ChatOpenAI({
+    temperature: 0,
+    modelName: "gpt-4o-mini",
   });
 
-  chain = RetrievalQAChain.fromLLM(model, vectorstore.asRetriever());
+  const chain = ConversationalRetrievalQAChain.fromLLM(model, vectorStore.asRetriever());
+
+  app.use(express.json());
+
+  let conversationHistory = [];
+
+  app.post("/chat", async (req, res) => {
+    try {
+      const { question } = req.body;
+      if (!question) {
+        return res.status(400).json({ error: "Question is required" });
+      }
+
+      const response = await chain.call({
+        question,
+        chat_history: conversationHistory,
+      });
+
+      conversationHistory.push([question, response.text]);
+      res.json({ answer: response.text });
+    } catch (error) {
+      console.error("Error in /chat:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+
+  app.get("/", (req, res) => {
+    res.send("Shiva Boys Chatbot Server is running.");
+  });
+
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+  });
 }
 
-app.post("/chat", async (req, res) => {
-  try {
-    const { question } = req.body;
-    if (!question) return res.status(400).json({ error: "Missing question" });
-
-    const response = await chain.call({ query: question });
-    res.json({ response: response.text });
-  } catch (err) {
-    console.error("Error:", err.message);
-    res.status(500).json({ error: "Something went wrong" });
-  }
+main().catch((err) => {
+  console.error("Fatal error:", err);
+  process.exit(1);
 });
-
-main()
-  .then(() => app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`)))
-  .catch(err => console.error("Startup error:", err));

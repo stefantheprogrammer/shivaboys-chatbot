@@ -1,20 +1,21 @@
 {
   "name": "shivaboys-chatbot",
   "version": "1.0.0",
-  "description": "AI Chatbot for Shiva Boys' Hindu College website",
+  "description": "AI Chatbot for Shiva Boys Hindu College",
   "main": "server.js",
   "type": "module",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-  "langchain": "0.3.30",
-  "@langchain/openai": "0.6.3",
-  "@langchain/community": "0.3.49",
-  "@langchain/groq": "0.2.3",
-  "@huggingface/inference": "^2.5.1",
-  "express": "^4.18.2",
-  "cors": "^2.8.5",
-  "dotenv": "^16.3.1"
-}
+    "langchain": "0.3.0",
+    "express": "^4.18.2",
+    "dotenv": "^16.0.3",
+    "node-fetch": "^3.3.1",
+    "cheerio": "^1.0.0-rc.12"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
 }
