@@ -1,11 +1,12 @@
-
 services:
   - type: web
-    name: sbhc-chatbot
+    name: shivaboys-chatbot
     env: node
-    buildCommand: cd backend && npm install
-    startCommand: node backend/server.js
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
     envVars:
-      - key: OPENAI_API_KEY
+      - key: GROQ_API_KEY
         sync: false
-    autoDeploy: true
+      - key: HF_API_KEY
+        sync: false
