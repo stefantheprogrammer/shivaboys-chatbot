@@ -1,94 +1,107 @@
-import express from 'express';
-import cors from 'cors';
-import cheerio from 'cheerio';
-import https from 'https';
-import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
-import { MemoryVectorStore } from 'langchain/vectorstores/memory';
-import { HuggingFaceTransformersEmbeddings } from '@langchain/community/embeddings/hf';
-import { ChatGroq } from '@langchain/groq';
-import { RetrievalQAChain } from 'langchain/chains';
+import express from "express";
+import * as cheerio from "cheerio";
+import * as dotenv from "dotenv";
+import { ChatGroq } from "@langchain/groq";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { Embeddings } from "langchain/embeddings/base";
+import { RetrievalQAChain } from "langchain/chains";
+import { CheerioWebBaseLoader } from "langchain/document_loaders/web/cheerio";
+
+dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 10000;
-app.use(cors());
+const port = process.env.PORT || 10000;
+let chain;
+
 app.use(express.json());
 
-console.log('Server running on port', PORT);
+// Use HuggingFace free embeddings (MiniLM)
+class HuggingFaceEmbeddings extends Embeddings {
+  async embedDocuments(documents) {
+    const res = await fetch("https://api-inference.huggingface.co/embeddings/sentence-transformers/all-MiniLM-L6-v2", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ inputs: documents })
+    });
+    const json = await res.json();
+    return json;
+  }
 
-// Step 1: Load website data
-async function fetchWebsiteText(url) {
-  const agent = new https.Agent({ rejectUnauthorized: false }); // Ignore SSL errors
-  const res = await fetch(url, { agent });
-  const html = await res.text();
-  const $ = cheerio.load(html);
-  return $('body').text();
+  async embedQuery(query) {
+    return (await this.embedDocuments([query]))[0];
+  }
 }
 
+// Scrape website content
+async function fetchWebsiteText(url) {
+  try {
+    const loader = new CheerioWebBaseLoader(url);
+    const docs = await loader.load();
+    return docs;
+  } catch (error) {
+    console.error("Failed to fetch:", url, error);
+    return [];
+  }
+}
+
+// Load and embed documents
 async function loadDocuments() {
-  console.log('Loading documents...');
   const pages = [
-    'https://shivaboys.edu.tt',
-    'https://shivaboys.edu.tt/about.html',
-    'https://shivaboys.edu.tt/index.html',
-    'https://shivaboys.edu.tt/department.html',
-    'https://shivaboys.edu.tt/sixthform.html',
-    'https://shivaboys.edu.tt/students.html',
-    'https://shivaboys.edu.tt/curriculum.html',
-    'https://shivaboys.edu.tt/parents.html',
-    'https://shivaboys.edu.tt/achievements.html',
-    'https://shivaboys.edu.tt/contact.html'
+    "https://shivaboys.edu.tt/",
+    "https://shivaboys.edu.tt/about.html",
+    "https://shivaboys.edu.tt/index.html",
+    "https://shivaboys.edu.tt/department.html",
+    "https://shivaboys.edu.tt/curriculum.html",
+    "https://shivaboys.edu.tt/csec.html"
   ];
 
-  const texts = await Promise.all(pages.map(fetchWebsiteText));
-  return pages.map((url, i) => ({
-    metadata: { source: url },
-    pageContent: texts[i]
-  }));
+  let allDocs = [];
+  for (const page of pages) {
+    const docs = await fetchWebsiteText(page);
+    allDocs.push(...docs);
+  }
+
+  const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 1000, chunkOverlap: 200 });
+  const splitDocs = await splitter.splitDocuments(allDocs);
+
+  const vectorStore = await MemoryVectorStore.fromDocuments(splitDocs, new HuggingFaceEmbeddings());
+  return vectorStore;
 }
 
-// Step 2: Create retriever
-let retriever;
-
+// Initialize vector store and chain
 async function main() {
-  const docs = await loadDocuments();
+  console.log("Loading documents...");
+  const vectorStore = await loadDocuments();
 
-  const splitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 1000,
-    chunkOverlap: 200
+  const model = new ChatGroq({
+    apiKey: process.env.GROQ_API_KEY,
+    model: "llama3-8b-8192"
   });
 
-  const splitDocs = await splitter.splitDocuments(docs);
-
-  const embeddings = new HuggingFaceTransformersEmbeddings({
-    modelName: 'sentence-transformers/all-MiniLM-L6-v2'
-  });
-
-  const vectorStore = await MemoryVectorStore.fromDocuments(splitDocs, embeddings);
-
-  retriever = vectorStore.asRetriever();
-  console.log('Document embeddings ready.');
+  chain = RetrievalQAChain.fromLLM(model, vectorStore.asRetriever());
+  console.log("Chatbot ready.");
 }
 
-main();
+app.post("/chat", async (req, res) => {
+  const question = req.body.question;
+  if (!question || !chain) {
+    return res.status(400).json({ error: "No question or model not ready." });
+  }
 
-// Step 3: QA Chain with Groq
-const model = new ChatGroq({
-  apiKey: process.env.GROQ_API_KEY,
-  model: 'llama3-8b-8192'
-});
-
-const chain = RetrievalQAChain.fromLLM(model, retriever);
-
-// Step 4: API endpoint
-app.post('/chat', async (req, res) => {
-  const { question } = req.body;
   try {
     const response = await chain.call({ query: question });
     res.json({ response: response.text });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Something went wrong.' });
+    console.error("Error:", err);
+    res.status(500).json({ error: "Something went wrong." });
   }
 });
 
-app.listen(PORT);
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+  main();
+});
