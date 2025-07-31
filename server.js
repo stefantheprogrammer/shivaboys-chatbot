@@ -1,112 +1,132 @@
-import express from "express";
-import fs from "fs";
-import path from "path";
-import dotenv from "dotenv";
-import cors from "cors";
-import { pipeline } from "@huggingface/inference";
-import fetch from "node-fetch";
-import { fileURLToPath } from "url";
+import express from 'express';
+import cors from 'cors';
+import fs from 'fs/promises';
+import path from 'path';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { pipeline } from '@xenova/transformers';
+import { ChatGroq } from '@langchain/groq';
+import { ChatPromptTemplate } from '@langchain/core/prompts';
+import { RunnableSequence } from '@langchain/core/runnables';
+import { StringOutputParser } from '@langchain/core/output_parsers';
+import { createRetrieverFromTexts } from 'langchain/retrievers/web';
 
 dotenv.config();
+
 const app = express();
-app.use(express.json());
+const port = process.env.PORT || 10000;
+
 app.use(cors());
+app.use(express.json());
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DATA_FOLDER = path.join(__dirname, "data");
-let documents = [];
-let documentEmbeddings = [];
+// === EMBEDDINGS SETUP ===
+let embedder = null;
+const embeddingsCache = new Map();
 
-// Load documents
-function loadDocuments() {
-  const files = fs.readdirSync(DATA_FOLDER).filter(f => f.endsWith(".json"));
-  documents = [];
+async function embedText(text) {
+  if (!embedder) {
+    embedder = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
+  }
+
+  if (embeddingsCache.has(text)) {
+    return embeddingsCache.get(text);
+  }
+
+  const result = await embedder(text, { pooling: 'mean', normalize: true });
+  const embedding = Array.from(result.data);
+  embeddingsCache.set(text, embedding);
+  return embedding;
+}
+
+// === LOAD DOCUMENTS ===
+async function loadDocuments() {
+  const dataDir = path.join(__dirname, 'data');
+  const files = await fs.readdir(dataDir);
+  const allDocs = [];
+
   for (const file of files) {
-    const content = fs.readFileSync(path.join(DATA_FOLDER, file), "utf-8");
+    const filePath = path.join(dataDir, file);
+    const content = await fs.readFile(filePath, 'utf-8');
     try {
-      const json = JSON.parse(content);
-      json.forEach(entry => {
-        if (entry.title && entry.content) {
-          documents.push({ title: entry.title, content: entry.content });
+      const docs = JSON.parse(content);
+      for (const d of docs) {
+        if (d.title && d.content) {
+          allDocs.push({ title: d.title, content: d.content });
+        } else {
+          console.warn(`⚠️ Skipped document in ${file} with missing title or content`);
         }
-      });
-    } catch (err) {
-      console.error("Invalid JSON in", file);
+      }
+    } catch (e) {
+      console.warn(`⚠️ Failed to parse ${file}: ${e.message}`);
     }
   }
+
+  return allDocs;
+}
+
+// === STARTUP LOGIC ===
+let retriever;
+
+async function initialize() {
+  console.log('Loading documents...');
+  const documents = await loadDocuments();
   console.log(`Loaded ${documents.length} documents from website data.`);
-}
 
-// Compute local embeddings using HuggingFace
-async function computeEmbeddings() {
-  const embed = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
-  documentEmbeddings = await Promise.all(documents.map(doc => embed(doc.content).then(v => v[0])));
-  console.log("Document embeddings ready.");
-}
+  const combinedText = documents.map(d => `Title: ${d.title}\nContent: ${d.content}`).join('\n\n');
 
-// Cosine similarity
-function cosineSimilarity(a, b) {
-  const dot = a.reduce((sum, val, i) => sum + val * b[i], 0);
-  const normA = Math.sqrt(a.reduce((sum, val) => sum + val * val, 0));
-  const normB = Math.sqrt(b.reduce((sum, val) => sum + val * val, 0));
-  return dot / (normA * normB);
-}
-
-// Get top matching document
-async function getRelevantDocs(query) {
-  const embed = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
-  const queryVec = (await embed(query))[0];
-  const scoredDocs = documents.map((doc, i) => ({
-    ...doc,
-    score: cosineSimilarity(queryVec, documentEmbeddings[i])
-  }));
-  return scoredDocs.sort((a, b) => b.score - a.score).slice(0, 3);
-}
-
-// Groq chat
-async function chatWithGroq(systemPrompt, userPrompt) {
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${process.env.GROQ_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
-      model: "llama3-70b-8192",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ]
-    })
+  console.log('Computing embeddings for documents...');
+  retriever = await createRetrieverFromTexts([combinedText], embedText, {
+    k: 5,
   });
-  const data = await response.json();
-  return data.choices?.[0]?.message?.content || "Sorry, I couldn't respond at the moment.";
+
+  console.log('Document embeddings ready.');
 }
 
-// API endpoint
-app.post("/chat", async (req, res) => {
-  const question = req.body.question;
-  if (!question) return res.status(400).json({ error: "Missing question" });
+await initialize();
 
-  const relevantDocs = await getRelevantDocs(question);
-  const context = relevantDocs.map(d => `${d.title}:
-${d.content}`).join("
-
-");
-  const systemPrompt = `You are a helpful assistant for Shiva Boys' Hindu College. Use the following context from the website to answer the question:
-
-${context}`;
-  const answer = await chatWithGroq(systemPrompt, question);
-  res.json({ answer });
+// === CHAT MODEL ===
+const model = new ChatGroq({
+  apiKey: process.env.GROQ_API_KEY,
+  model: 'llama3-70b-8192',
 });
 
-// Init
-app.listen(10000, async () => {
-  console.log("Loading documents...");
-  loadDocuments();
-  console.log("Computing embeddings for documents...");
-  await computeEmbeddings();
-  console.log("Server running on port 10000");
+const prompt = ChatPromptTemplate.fromMessages([
+  ['system', 'You are a helpful assistant for a secondary school website. Answer questions using the context provided. If unsure, say "I\'m not sure about that."'],
+  ['context', '{context}'],
+  ['human', '{question}'],
+]);
+
+const chain = RunnableSequence.from([
+  { question: (input) => input.question, context: async (input) => {
+      const docs = await retriever.getRelevantDocuments(input.question);
+      return docs.map(doc => doc.pageContent).join('\n\n');
+    }
+  },
+  prompt,
+  model,
+  new StringOutputParser(),
+]);
+
+// === ROUTES ===
+app.get('/', (req, res) => {
+  res.send('Shiva Boys AI Chatbot is running.');
+});
+
+app.post('/chat', async (req, res) => {
+  try {
+    const { question } = req.body;
+    const response = await chain.invoke({ question });
+    res.json({ response });
+  } catch (err) {
+    console.error('Chat error:', err.message);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// === START SERVER ===
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
