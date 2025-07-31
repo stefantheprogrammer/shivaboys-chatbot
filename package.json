@@ -7,13 +7,12 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "@langchain/community": "^0.1.7",
     "@langchain/core": "^0.1.33",
     "@langchain/groq": "^0.0.3",
     "@xenova/transformers": "^2.15.0",
     "cheerio": "^1.0.0-rc.12",
-    "express": "^4.18.2",
     "cors": "^2.8.5",
+    "express": "^4.18.2",
     "langchain": "^0.1.56"
   }
 }
