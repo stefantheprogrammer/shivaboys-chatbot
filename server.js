@@ -2,11 +2,16 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
-const { OpenAI } = require('openai');
 require('dotenv').config();
 
+const { GroqClient } = require('@groq/client');
+
 const app = express();
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const client = new GroqClient({
+  apiKey: process.env.GROQ_API_KEY,
+  model: process.env.GROQ_MODEL || 'mixtral-8x7b-32768',
+});
 
 app.use(cors());
 app.use(express.json());
@@ -20,28 +25,13 @@ fs.readdirSync(DATA_PATH).forEach(file => {
   if (file.endsWith('.json')) {
     const raw = fs.readFileSync(path.join(DATA_PATH, file));
     const doc = JSON.parse(raw);
-    // Combine title and content for embedding
+    // Combine title and content for retrieval
     doc.text = (doc.title || '') + '\n' + (doc.content || '');
     documents.push(doc);
   }
 });
 
-// Helper: get embedding for text
-async function getEmbedding(text) {
-  const embeddingResponse = await openai.embeddings.create({
-    input: text,
-    model: 'text-embedding-3-small', // or other embedding model
-  });
-  return embeddingResponse.data[0].embedding;
-}
-
-// Precompute embeddings for documents at startup
-let documentEmbeddings = [];
-(async () => {
-  documentEmbeddings = await Promise.all(documents.map(doc => getEmbedding(doc.text)));
-})();
-
-// Compute cosine similarity between two vectors
+// Basic cosine similarity helper function for embeddings (if you want to embed locally)
 function cosineSimilarity(vecA, vecB) {
   const dotProduct = vecA.reduce((sum, a, i) => sum + a * vecB[i], 0);
   const magA = Math.sqrt(vecA.reduce((sum, a) => sum + a * a, 0));
@@ -53,32 +43,32 @@ app.post('/chat', async (req, res) => {
   const userMessage = req.body.message;
 
   try {
-    // Get embedding for user query
-    const userEmbedding = await getEmbedding(userMessage);
+    // --- Retrieval Augmentation using Groq ---
 
-    // Find top 3 most similar docs
-    const scoredDocs = documents.map((doc, i) => ({
-      doc,
-      score: cosineSimilarity(userEmbedding, documentEmbeddings[i])
-    }));
-    scoredDocs.sort((a, b) => b.score - a.score);
-    const topDocs = scoredDocs.slice(0, 3).map(d => d.doc.text).join('\n---\n');
+    // Option 1: Use Groq's built-in RAG endpoint (if available)
+    // e.g. client.complete() with retrieval documents
 
-    // Send system prompt with retrieved context
-    const messages = [
-      {
-        role: "system",
-        content: `You are a helpful assistant for Shiva Boys' Hindu College in Trinidad and Tobago. Use ONLY the following extracted information from the website to answer user questions:\n${topDocs}`
-      },
-      { role: "user", content: userMessage }
-    ];
+    // Option 2: If no embedding endpoint, do simple text matching here (or precompute embeddings offline)
+    // For demo: concatenate all docs (or top N) and send as context prompt
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4",
-      messages: messages,
+    const contextText = documents.map(d => d.text).join('\n---\n');
+
+    const prompt = `You are a helpful assistant for Shiva Boys' Hindu College in Trinidad and Tobago.
+Use ONLY the following extracted information from the website to answer user questions:
+${contextText}
+
+User question: ${userMessage}
+Answer:`;
+
+    // Call Groq completion endpoint
+    const completion = await client.complete({
+      prompt,
+      maxTokens: 500,
+      temperature: 0.2,
     });
 
-    res.json({ response: completion.choices[0].message.content });
+    res.json({ response: completion.text.trim() });
+
   } catch (err) {
     console.error('Error in /chat:', err);
     res.status(500).json({ error: 'Failed to get response from AI' });
