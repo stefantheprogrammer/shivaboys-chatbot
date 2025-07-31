@@ -1,86 +1,93 @@
-import express from 'express';
-import cors from 'cors';
-import morgan from 'morgan';
-import dotenv from 'dotenv';
-import fs from 'fs/promises';
-import path from 'path';
-import { HuggingFaceInference } from '@huggingface/inference';
-import { HuggingFaceTransformersEmbeddings } from 'langchain/embeddings/hf';
-import { RetrievalQAChain } from 'langchain/chains';
-import { VectorStoreRetriever } from 'langchain/vectorstores/base';
-import { MemoryVectorStore } from 'langchain/vectorstores/memory';
-import { TextLoader } from 'langchain/document_loaders/fs/text';
-import { RecursiveCharacterTextSplitter } from 'langchain/text_splitter';
+import express from "express";
+import cors from "cors";
+import morgan from "morgan";
+import dotenv from "dotenv";
+import axios from "axios";
+import fs from "fs/promises";
+import path from "path";
 
 dotenv.config();
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(morgan('dev'));
+app.use(morgan("dev"));
 app.use(express.json());
 
-const hf = new HuggingFaceInference(process.env.HUGGINGFACE_API_KEY);
-
-const embedder = new HuggingFaceTransformersEmbeddings({
-  model: "sentence-transformers/all-MiniLM-L6-v2",
+const hfApi = axios.create({
+  baseURL: "https://api-inference.huggingface.co",
+  headers: {
+    Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+    "Content-Type": "application/json"
+  }
 });
 
-let qaChain;
-
-async function init() {
-  const dataDir = './data';
-  const files = await fs.readdir(dataDir);
-
+// Load local `.json` files from `/data` directory
+async function loadDocuments() {
+  const files = await fs.readdir(path.join(__dirname, "data"));
   const docs = [];
-  for (const file of files) {
-    const filePath = path.join(dataDir, file);
-    const loader = new TextLoader(filePath);
-    const loadedDocs = await loader.load();
-    docs.push(...loadedDocs);
+  for (const f of files) {
+    const content = await fs.readFile(path.join(__dirname, "data", f), "utf8");
+    const obj = JSON.parse(content);
+    docs.push(`${obj.title || ""}\n${obj.content || ""}`);
   }
-
-  const splitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 1000,
-    chunkOverlap: 150,
-  });
-
-  const splitDocs = await splitter.splitDocuments(docs);
-  const vectorStore = await MemoryVectorStore.fromDocuments(splitDocs, embedder);
-  const retriever = new VectorStoreRetriever({ vectorStore });
-
-  qaChain = RetrievalQAChain.fromLLM(
-    {
-      llm: {
-        _call: async ({ prompt }) => {
-          const res = await hf.textGeneration({
-            model: "mistralai/Mixtral-8x7B-Instruct-v0.1",
-            inputs: prompt,
-            parameters: { max_new_tokens: 300, temperature: 0.7 },
-          });
-          return res.generated_text || res[0]?.generated_text || "Sorry, I couldn't understand.";
-        }
-      }
-    },
-    retriever
-  );
+  return docs;
 }
 
-app.post('/ask', async (req, res) => {
-  try {
-    const question = req.body.question;
-    const result = await qaChain.call({ query: question });
-    res.json({ answer: result.text });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Something went wrong' });
+let documents = [];
+let documentEmbeddings = [];
+
+async function computeEmbeddings() {
+  const docs = await loadDocuments();
+  documents = docs;
+
+  const resp = await hfApi.post("/embeddings", {
+    model: "sentence-transformers/all-MiniLM-L6-v2",
+    inputs: docs
+  });
+
+  documentEmbeddings = resp.data;
+}
+
+computeEmbeddings().catch(console.error);
+
+function cosine(a, b) {
+  let dot = 0, magA = 0, magB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    magA += a[i] * a[i];
+    magB += b[i] * b[i];
   }
+  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
+}
+
+app.post("/chat", async (req, res) => {
+  const { question } = req.body;
+  if (!question) return res.status(400).json({ error: "Question is required" });
+
+  // Create embedding for question
+  const qEmbedRes = await hfApi.post("/embeddings", {
+    model: "sentence-transformers/all-MiniLM-L6-v2",
+    inputs: [question]
+  });
+  const qEmbed = qEmbedRes.data[0];
+
+  // Find top-3 docs
+  const scores = documentEmbeddings.map((de, i) => ({ idx: i, score: cosine(qEmbed, de) }));
+  const top = scores.sort((a, b) => b.score - a.score).slice(0, 3);
+  const context = top.map(o => documents[o.idx]).join("\n---\n");
+
+  // Ask chat
+  const prompt = `Use the context below to answer:\n${context}\n\nQuestion: ${question}`;
+
+  const chatResponse = await hfApi.post("/text-generation", {
+    model: "mistralai/Mixtral-8x7B-Instruct-v0.1",
+    inputs: prompt,
+    parameters: { max_new_tokens: 200, temperature: 0.3 }
+  });
+
+  const answer = chatResponse.data[0]?.generated_text || chatResponse.data.generated_text;
+  res.json({ answer });
 });
 
-app.get('/', (_, res) => {
-  res.send('Shiva Boys Chatbot API is running.');
-});
-
-init().then(() => {
-  app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
-});
+app.listen(port, () => console.log(`Server listening on ${port}`));
