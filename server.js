@@ -1,57 +1,33 @@
-const express = require("express");
-const cors = require("cors");
-const path = require("path");
-require("dotenv").config();
-const { OpenAI } = require("openai");
+
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
+const { OpenAI } = require('openai');
+require('dotenv').config();
 
 const app = express();
-const port = process.env.PORT || 3000;
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static("public"));
+app.use(express.static(path.join(__dirname, 'public')));
 
-app.get("/widget.html", (req, res) => {
-  res.setHeader("Content-Type", "text/html");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.sendFile(path.join(__dirname, "public", "widget.html"));
-});
-
-app.get("/widget.js", (req, res) => {
-  res.setHeader("Content-Type", "application/javascript");
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.sendFile(path.join(__dirname, "public", "widget.js"));
-});
-
-app.post("/chat", async (req, res) => {
+app.post('/chat', async (req, res) => {
+  const userMessage = req.body.message;
   try {
-    const openai = new OpenAI({
-      apiKey: process.env.GROQ_API_KEY,
-      baseURL: "https://api.groq.com/openai/v1",
-    });
-
     const completion = await openai.chat.completions.create({
-      model: "llama3-8b-8192",
       messages: [
-        {
-          role: "system",
-          content:
-            "You are a helpful AI assistant for Shiva Boys' Hindu College in Trinidad and Tobago. Answer clearly and politely.",
-        },
-        { role: "user", content: req.body.message },
+        { role: "system", content: "You are a helpful assistant for Shiva Boys' Hindu College in Trinidad and Tobago. Use only content from the website if available." },
+        { role: "user", content: userMessage }
       ],
+      model: "gpt-4",
     });
-
-    const reply = completion.choices[0].message.content;
-    res.json({ reply });
-  } catch (error) {
-    console.error("Groq API error:", error);
-    res.status(500).json({
-      error: "Sorry, something went wrong processing your request.",
-    });
+    res.json({ response: completion.choices[0].message.content });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get response from AI' });
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
