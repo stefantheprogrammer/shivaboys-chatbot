@@ -9,7 +9,6 @@
   },
   "dependencies": {
   "langchain": "0.3.30",
-  "@langchain/core": "0.3.30",
   "@langchain/openai": "0.6.3",
   "@langchain/community": "0.3.49",
   "@langchain/groq": "0.2.3",
