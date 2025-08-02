@@ -1,74 +1,82 @@
 import express from "express";
 import cors from "cors";
-import morgan from "morgan";
-import dotenv from "dotenv";
 import { HuggingFaceInferenceEmbeddings } from "langchain/embeddings/hf";
 import { ChatHuggingFaceInference } from "langchain/chat_models/hf";
 import { RetrievalQAChain } from "langchain/chains";
-import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import fs from "fs/promises";
-import path from "path";
-import { fileURLToPath } from "url";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { PromptTemplate } from "langchain/prompts";
 
-dotenv.config();
 const app = express();
-const port = process.env.PORT || 3000;
-
 app.use(cors());
-app.use(morgan("dev"));
 app.use(express.json());
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-let qaChain;
-
-async function init() {
-  const embeddings = new HuggingFaceInferenceEmbeddings({
-    model: "sentence-transformers/all-MiniLM-L6-v2",
-    apiKey: process.env.HUGGINGFACE_API_KEY,
-  });
-
-  const loaderPath = path.join(__dirname, "data");
-  const files = await fs.readdir(loaderPath);
-
-  let docs = [];
-  for (const file of files) {
-    const content = await fs.readFile(path.join(loaderPath, file), "utf-8");
-    docs.push({ pageContent: content });
-  }
-
-  const splitter = new RecursiveCharacterTextSplitter({
-    chunkSize: 500,
-    chunkOverlap: 50,
-  });
-
-  const splitDocs = await splitter.splitDocuments(docs);
-  const vectorStore = await MemoryVectorStore.fromDocuments(splitDocs, embeddings);
-
-  const retriever = vectorStore.asRetriever();
-  const model = new ChatHuggingFaceInference({
-    model: "mistralai/Mixtral-8x7B-Instruct-v0.1",
-    apiKey: process.env.HUGGINGFACE_API_KEY,
-  });
-
-  qaChain = RetrievalQAChain.fromLLM(model, retriever);
+const hfKey = process.env.HUGGINGFACEHUB_API_KEY;
+if (!hfKey) {
+  throw new Error("Missing HUGGINGFACEHUB_API_KEY environment variable");
 }
 
+const embeddings = new HuggingFaceInferenceEmbeddings({ apiKey: hfKey });
+const chatModel = new ChatHuggingFaceInference({
+  model: "HuggingFaceH4/zephyr-7b-beta",
+  apiKey: hfKey,
+  temperature: 0.6
+});
+
+const prompt = PromptTemplate.fromTemplate(`
+You are an assistant for a school website. Answer based on the context below.
+
+Context:
+{context}
+
+Question: {question}
+`);
+
+const loader = async () => {
+  // Hardcoded documents — later you can load from a folder or site
+  const documents = [
+    {
+      title: "Welcome",
+      content: "Shiva Boys’ Hindu College is a prestigious institution located in Trinidad and Tobago."
+    },
+    {
+      title: "Vision",
+      content: "To produce disciplined, productive and respected citizens of Trinidad and Tobago."
+    }
+  ];
+
+  const formattedDocs = documents.map(doc => ({
+    pageContent: doc.title + "\n\n" + doc.content
+  }));
+
+  const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 500, chunkOverlap: 50 });
+  const docs = await splitter.splitDocuments(formattedDocs);
+
+  const vectorStore = await MemoryVectorStore.fromDocuments(docs, embeddings);
+  return vectorStore;
+};
+
+const vectorStorePromise = loader();
+
 app.post("/chat", async (req, res) => {
+  const { message } = req.body;
+  if (!message) return res.status(400).json({ error: "No message provided" });
+
   try {
-    const question = req.body.question;
-    const response = await qaChain.call({ query: question });
+    const vectorStore = await vectorStorePromise;
+
+    const chain = RetrievalQAChain.fromLLM(chatModel, vectorStore.asRetriever(), {
+      prompt,
+      returnSourceDocuments: true
+    });
+
+    const response = await chain.call({ query: message });
     res.json({ response: response.text });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Something went wrong." });
+    res.status(500).json({ error: "Failed to process request" });
   }
 });
 
-init().then(() => {
-  app.listen(port, () => {
-    console.log(`✅ Server running on port ${port}`);
-  });
-});
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log(`Chatbot running on port ${PORT}`));
