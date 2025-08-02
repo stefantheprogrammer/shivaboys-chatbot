@@ -1,82 +1,78 @@
 import express from "express";
 import cors from "cors";
-import { HuggingFaceInferenceEmbeddings } from "langchain/embeddings/hf";
-import { ChatHuggingFaceInference } from "langchain/chat_models/hf";
-import { RetrievalQAChain } from "langchain/chains";
+import dotenv from "dotenv";
+import { HuggingFaceTransformersEmbeddings } from "@langchain/community/embeddings/hf";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
-import { PromptTemplate } from "langchain/prompts";
+import { ChatGroq } from "@langchain/groq";
+import { RetrievalQAChain } from "langchain/chains";
+import { BufferMemory } from "langchain/memory";
+
+dotenv.config();
 
 const app = express();
+const port = process.env.PORT || 3000;
+
 app.use(cors());
 app.use(express.json());
 
-const hfKey = process.env.HUGGINGFACEHUB_API_KEY;
-if (!hfKey) {
-  throw new Error("Missing HUGGINGFACEHUB_API_KEY environment variable");
-}
+let vectorStore = null;
 
-const embeddings = new HuggingFaceInferenceEmbeddings({ apiKey: hfKey });
-const chatModel = new ChatHuggingFaceInference({
-  model: "HuggingFaceH4/zephyr-7b-beta",
-  apiKey: hfKey,
-  temperature: 0.6
-});
-
-const prompt = PromptTemplate.fromTemplate(`
-You are an assistant for a school website. Answer based on the context below.
-
-Context:
-{context}
-
-Question: {question}
-`);
-
-const loader = async () => {
-  // Hardcoded documents — later you can load from a folder or site
-  const documents = [
+// Load docs into memory
+async function loadDocs() {
+  const docs = [
     {
       title: "Welcome",
-      content: "Shiva Boys’ Hindu College is a prestigious institution located in Trinidad and Tobago."
+      content: "Shiva Boys’ Hindu College is a government-assisted secondary school located in Trinidad and Tobago..."
     },
     {
-      title: "Vision",
-      content: "To produce disciplined, productive and respected citizens of Trinidad and Tobago."
-    }
+      title: "Curriculum",
+      content: "The curriculum includes Mathematics, English, Science, Information Technology, Business Studies, and Modern Languages..."
+    },
+    // Add more documents as needed
   ];
 
-  const formattedDocs = documents.map(doc => ({
-    pageContent: doc.title + "\n\n" + doc.content
+  const formattedDocs = docs.map(doc => ({
+    pageContent: doc.content,
+    metadata: { title: doc.title }
   }));
 
   const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 500, chunkOverlap: 50 });
-  const docs = await splitter.splitDocuments(formattedDocs);
+  const splitDocs = await splitter.splitDocuments(formattedDocs);
 
-  const vectorStore = await MemoryVectorStore.fromDocuments(docs, embeddings);
-  return vectorStore;
-};
+  const embeddings = new HuggingFaceTransformersEmbeddings({
+    modelName: "sentence-transformers/all-MiniLM-L6-v2"
+  });
 
-const vectorStorePromise = loader();
+  vectorStore = await MemoryVectorStore.fromDocuments(splitDocs, embeddings);
+}
+
+await loadDocs();
 
 app.post("/chat", async (req, res) => {
   const { message } = req.body;
-  if (!message) return res.status(400).json({ error: "No message provided" });
 
   try {
-    const vectorStore = await vectorStorePromise;
+    const model = new ChatGroq({
+      apiKey: process.env.GROQ_API_KEY,
+      model: "llama3-8b-8192",
+      temperature: 0.7,
+    });
 
-    const chain = RetrievalQAChain.fromLLM(chatModel, vectorStore.asRetriever(), {
-      prompt,
-      returnSourceDocuments: true
+    const chain = RetrievalQAChain.fromLLM(model, vectorStore.asRetriever(), {
+      memory: new BufferMemory(),
+      returnSourceDocuments: true,
     });
 
     const response = await chain.call({ query: message });
+
     res.json({ response: response.text });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to process request" });
+  } catch (error) {
+    console.error("Chat error:", error);
+    res.status(500).json({ error: "Failed to generate response" });
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Chatbot running on port ${PORT}`));
+app.listen(port, () => {
+  console.log(`✅ Server is running on port ${port}`);
+});
