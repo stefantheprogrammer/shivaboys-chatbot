@@ -1,22 +1,18 @@
 [
   {
-    "title": "Welcome to Shiva Boys' Hindu College",
-    "content": "Shiva Boys' Hindu College is dedicated to academic excellence and cultural development, fostering a strong community spirit."
-  },
-  {
-    "title": "Admission Process",
-    "content": "Students interested in admission can apply online or visit our admissions office during working hours. Requirements include previous school transcripts and identification."
-  },
-  {
-    "title": "Academic Programs",
-    "content": "Our school offers programs in Science, Mathematics, Business, Languages, and Humanities with a focus on holistic development."
-  },
-  {
-    "title": "Extracurricular Activities",
-    "content": "We offer a variety of clubs and sports including Debate Club, Envi Club, Interact Club, Mathematics Olympiad, and more."
+    "title": "School Address",
+    "content": "Shiva Boys' Hindu College is located at 45 Caroni Savannah Road, Chaguanas, Trinidad and Tobago."
   },
   {
     "title": "Contact Information",
-    "content": "For inquiries, contact us at info@shivaboys.edu.tt or call (868) 123-4567."
+    "content": "You can contact us at (868) 665-1234 or email us at info@shivaboys.edu.tt."
+  },
+  {
+    "title": "Environmental Club",
+    "content": "The Envi Club at Shiva Boys promotes awareness about climate change and sustainability."
+  },
+  {
+    "title": "Input Device Definition",
+    "content": "An input device in computing is a hardware component used to provide data and control signals to a computer. Examples include keyboards, mice, and scanners."
   }
 ]
