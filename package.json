@@ -7,10 +7,7 @@
   },
   "dependencies": {
     "@huggingface/inference": "4.6.1",
-<<<<<<< HEAD
     "@langchain/community": "^0.3.49",
-=======
->>>>>>> 277d93a2658ac0b8e5cc8f7ccf1d5a9265f8f7db
     "@langchain/core": "^0.3.59",
     "@langchain/groq": "^0.2.3",
     "axios": "^1.4.0",
