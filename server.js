@@ -1,83 +1,86 @@
 import express from "express";
 import cors from "cors";
-import dotenv from "dotenv";
 import fs from "fs";
-
+import path from "path";
+import { fileURLToPath } from "url";
 import { ChatGroq } from "@langchain/groq";
-import { HuggingFaceTransformersEmbeddings } from "@langchain/community/embeddings/huggingface_transformers";
-import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { HuggingFaceInferenceEmbeddings } from "@langchain/community/embeddings/hf";
 import { RetrievalQAChain } from "langchain/chains";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+import { Document } from "@langchain/core/documents";
 
-dotenv.config();
+// Helpers to resolve directory paths
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = process.env.PORT || 3000;
+// ✅ Serve widget.html and other static files from /public
+app.use(express.static("public"));
 
-// Load documents for retrieval
-const raw = fs.readFileSync("data/website_data.json", "utf-8");
+// ✅ Load website content (RAG data)
+const raw = fs.readFileSync(path.join(__dirname, "data", "website_data.json"), "utf-8");
 const pages = JSON.parse(raw);
-const docs = pages.map((p) => ({
-  pageContent: p.content,
-  metadata: { source: p.title || "Untitled" },
-}));
 
-// Setup embeddings and vector store
-const embeddings = new HuggingFaceTransformersEmbeddings({
-  modelName: "Xenova/all-MiniLM-L6-v2",
+// ✅ Create documents from your pages
+const documents = pages.map((page) => new Document({ pageContent: page.content, metadata: { source: page.title } }));
+
+// ✅ Split documents
+const splitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 200,
+});
+const splitDocs = await splitter.splitDocuments(documents);
+
+// ✅ Embed using HuggingFace
+const embeddings = new HuggingFaceInferenceEmbeddings({
+  apiKey: process.env.HUGGINGFACE_API_KEY,
+  model: "sentence-transformers/all-mpnet-base-v2",
 });
 
-const vectorStore = await MemoryVectorStore.fromTexts(
-  docs.map((d) => d.pageContent),
-  docs.map((d) => d.metadata),
-  embeddings
-);
+// ✅ Store in-memory vector DB
+const vectorStore = await MemoryVectorStore.fromDocuments(splitDocs, embeddings);
 
-// Setup retrieval QA chain
+// ✅ Set up retriever
 const retriever = vectorStore.asRetriever();
 
-const retrievalChain = RetrievalQAChain.fromLLM(
-  new ChatGroq({
-    apiKey: process.env.GROQ_API_KEY,
-    model: "llama3-8b-8192",
-  }),
-  retriever
-);
-
-// Setup general AI LLM for fallback
-const groqLLM = new ChatGroq({
+// ✅ Set up Groq chat model (for AI + RAG)
+const chatModel = new ChatGroq({
   apiKey: process.env.GROQ_API_KEY,
   model: "llama3-8b-8192",
 });
 
+// ✅ Use a hybrid RAG QA Chain
+const chain = RetrievalQAChain.fromLLM(chatModel, retriever, {
+  returnSourceDocuments: true,
+});
+
+// ✅ Handle incoming questions
 app.post("/api/ask", async (req, res) => {
+  const question = req.body.question;
+  if (!question || question.trim() === "") {
+    return res.status(400).json({ error: "Question is required." });
+  }
+
   try {
-    const { question } = req.body;
+    const result = await chain.invoke({ query: question });
 
-    // Step 1: Try retrieval QA
-    const retrievalResponse = await retrievalChain.call({ query: question });
-
-    // If the answer is short, vague, or not useful, fallback to general AI
-    if (
-      !retrievalResponse.text ||
-      retrievalResponse.text.toLowerCase().includes("don't know") ||
-      retrievalResponse.text.length < 30
-    ) {
-      // Step 2: Fallback to Groq general LLM for freeform answer
-      const aiResponse = await groqLLM.call(question);
-      return res.json({ answer: aiResponse });
+    if (!result || !result.text) {
+      return res.json({ answer: "Sorry, I didn't understand that." });
     }
 
-    // Step 3: Otherwise send retrieval answer
-    res.json({ answer: retrievalResponse.text });
-  } catch (error) {
-    console.error("Error in /api/ask:", error);
-    res.status(500).json({ answer: "Sorry, something went wrong." });
+    res.json({ answer: result.text });
+  } catch (err) {
+    console.error("Error:", err);
+    res.status(500).json({ error: "An error occurred while processing your request." });
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+// ✅ Start the server
+const port = process.env.PORT || 3000;
+app.listen(port, () => {
+  console.log(`✅ Server running on port ${port}`);
 });
