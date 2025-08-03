@@ -161,16 +161,19 @@
     });
 
     function toggleChat() {
-      const container = document.getElementById('chat-container');
-      const toggleBtn = document.getElementById('toggle-btn');
-      if (container.style.display === 'none') {
-        container.style.display = 'flex';
-        toggleBtn.textContent = '−';
-      } else {
-        container.style.display = 'none';
-        toggleBtn.textContent = '+';
-      }
-    }
+  const container = document.getElementById('chat-container');
+  const toggleBtn = document.getElementById('toggle-btn');
+
+  if (container.style.display === 'none') {
+    container.style.display = 'flex';
+    toggleBtn.textContent = '−';
+    parent.postMessage({ type: 'resize-chat', height: 450 }, '*');
+  } else {
+    container.style.display = 'none';
+    toggleBtn.textContent = '+';
+    parent.postMessage({ type: 'resize-chat', height: 60 }, '*');
+  }
+}
   </script>
 </body>
 </html>
