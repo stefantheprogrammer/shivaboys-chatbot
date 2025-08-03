@@ -13,6 +13,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Add this line to serve static files from 'public' folder:
+app.use(express.static("public"));
+
 const PORT = process.env.PORT || 3000;
 
 // Load documents
