@@ -47,10 +47,14 @@ const chain = RetrievalQAChain.fromLLM(model, vectorStore.asRetriever());
 app.post("/api/ask", async (req, res) => {
   try {
     const { question } = req.body;
+    console.log("User question:", question);  // ✅ log input
+
     const response = await chain.call({ query: question });
+    console.log("AI response:", response);   // ✅ log output
+
     res.json({ answer: response.text });
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error during /api/ask:", error);  // ✅ log error
     res.status(500).json({ error: "Something went wrong" });
   }
 });
