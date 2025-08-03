@@ -20,7 +20,7 @@ app.use(express.json());
 const PORT = process.env.PORT || 10000;
 
 // Load website data
-const raw = fs.readFileSync("website_data.json", "utf-8");
+const rawData = fs.readFileSync('./data/website_data.json', 'utf8');
 const pages = JSON.parse(raw);
 
 // Prepare documents
