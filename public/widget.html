@@ -5,73 +5,80 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Sage.Ai Chatbot Widget</title>
   <style>
-    body, html {
-      margin: 0; padding: 0; height: 100vh; font-family: Arial, sans-serif;
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 0;
       background: #f2f6fb;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
     }
     #widget-container {
       display: flex;
       flex-direction: column;
-      height: 100vh;
       width: 350px;
+      height: 100vh;
+      max-height: 600px;
       border-radius: 10px;
       box-shadow: 0 0 10px rgba(0,0,0,0.15);
       background: white;
       overflow: hidden;
-      position: relative;
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      transition: height 0.3s ease;
+      font-size: 14px;
+      color: #003366;
     }
     #header {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 8px 12px;
       background: #003366;
       color: white;
-    }
-    #header-title {
       display: flex;
       align-items: center;
-      gap: 8px;
-      font-weight: bold;
-      font-size: 18px;
+      padding: 8px 12px;
+      user-select: none;
     }
-    #header-title img {
+    #header img {
       height: 24px;
-      width: 24px;
-      object-fit: contain;
-      border-radius: 4px;
-      background: white;
-      padding: 2px;
+      margin-right: 10px;
+    }
+    #header span {
+      flex-grow: 1;
+      font-weight: bold;
+      font-size: 16px;
     }
     #toggle-btn {
       background: transparent;
       border: none;
       color: white;
-      font-size: 24px;
-      cursor: pointer;
+      font-size: 22px;
       line-height: 1;
+      cursor: pointer;
+      padding: 0 8px;
       user-select: none;
-      padding: 0 5px;
     }
     #chat-container {
       flex-grow: 1;
       display: flex;
       flex-direction: column;
       padding: 10px;
+      overflow: hidden;
     }
     #chatbox {
       flex-grow: 1;
       overflow-y: auto;
       border: 1px solid #ddd;
-      border-radius: 8px;
       padding: 10px;
       background: white;
+      border-radius: 8px;
+      margin-bottom: 10px;
       scroll-behavior: smooth;
     }
     .message {
       margin: 8px 0;
       line-height: 1.4;
-      white-space: pre-wrap;
     }
     .user {
       text-align: right;
@@ -85,7 +92,6 @@
     #input-area {
       display: flex;
       gap: 5px;
-      margin-top: 8px;
     }
     input[type="text"] {
       flex-grow: 1;
@@ -94,7 +100,7 @@
       border: 1px solid #ccc;
       font-size: 14px;
     }
-    button#send-btn {
+    button {
       padding: 8px 12px;
       background: #003366;
       border: none;
@@ -102,9 +108,8 @@
       border-radius: 5px;
       cursor: pointer;
       font-size: 14px;
-      user-select: none;
     }
-    button#send-btn:disabled {
+    button:disabled {
       background: #999;
       cursor: not-allowed;
     }
@@ -112,24 +117,21 @@
       font-size: 10px;
       color: #666;
       text-align: center;
-      padding: 5px 0;
-      border-top: 1px solid #ddd;
-      background: #f9f9f9;
+      margin-top: 5px;
+      user-select: none;
     }
   </style>
 </head>
 <body>
   <div id="widget-container" role="region" aria-label="Sage.Ai Chatbot">
     <div id="header">
-      <div id="header-title">
-        <img src="https://shivaboys.edu.tt/images/sage.png" alt="Sage.Ai Logo" />
-        Sage.Ai
-      </div>
-      <button id="toggle-btn" aria-label="Minimize or expand chatbot">−</button>
+      <img src="https://shivaboys.edu.tt/images/sage.png" alt="Sage.Ai Logo" />
+      <span>Sage.Ai</span>
+      <button id="toggle-btn" aria-label="Minimize chat window">−</button>
     </div>
 
     <div id="chat-container">
-      <div id="chatbox" aria-live="polite" role="log" aria-relevant="additions"></div>
+      <div id="chatbox" aria-live="polite" role="log"></div>
       <div id="input-area">
         <input
           id="user-input"
@@ -137,13 +139,11 @@
           placeholder="Ask me anything..."
           aria-label="Ask a question"
           autocomplete="off"
-          spellcheck="false"
         />
-        <button id="send-btn" aria-label="Send message">Send</button>
+        <button id="send-btn">Send</button>
       </div>
+      <footer>Powered by StefanTheProgrammer</footer>
     </div>
-
-    <footer>Powered by StefanTheProgrammer</footer>
   </div>
 
   <script>
@@ -155,7 +155,7 @@
     const toggleBtn = document.getElementById("toggle-btn");
 
     let isMinimized = false;
-    let greeted = false;
+    let isNewChat = true;
 
     // Append message helper
     function appendMessage(text, sender) {
@@ -166,30 +166,14 @@
       chatbox.scrollTop = chatbox.scrollHeight;
     }
 
-    // Show greeting once on new chat
+    // Show greeting only once per new chat session
     function showGreeting() {
-      if (!greeted) {
-        appendMessage("Hi! How can I help you today?", "bot");
-        greeted = true;
+      if (isNewChat) {
+        appendMessage("Hello! I'm Sage.Ai, how can I help you today?", "bot");
+        isNewChat = false;
       }
     }
 
-    // Toggle minimize
-    toggleBtn.addEventListener("click", () => {
-      isMinimized = !isMinimized;
-      if (isMinimized) {
-        chatContainer.style.display = "none";
-        widgetContainer.style.height = "50px"; // just header height
-        toggleBtn.textContent = "+";
-      } else {
-        chatContainer.style.display = "flex";
-        widgetContainer.style.height = "100vh";
-        toggleBtn.textContent = "−";
-        input.focus();
-      }
-    });
-
-    // Send message handler
     async function sendMessage() {
       const message = input.value.trim();
       if (!message) return;
@@ -220,17 +204,32 @@
       input.focus();
     }
 
-    // Event listeners for sending message
     sendBtn.addEventListener("click", sendMessage);
     input.addEventListener("keypress", (e) => {
       if (e.key === "Enter") sendMessage();
     });
 
+    toggleBtn.addEventListener("click", () => {
+      isMinimized = !isMinimized;
+
+      if (isMinimized) {
+        // Minimize: shrink container height to header height only
+        widgetContainer.style.height = "50px"; // header approx height
+        chatContainer.style.display = "none";
+        toggleBtn.textContent = "+";
+        toggleBtn.setAttribute("aria-label", "Maximize chat window");
+      } else {
+        // Expand: restore full height and show chat container
+        widgetContainer.style.height = "100vh";
+        chatContainer.style.display = "flex";
+        toggleBtn.textContent = "−";
+        toggleBtn.setAttribute("aria-label", "Minimize chat window");
+        input.focus();
+      }
+    });
+
     // Show greeting on load
-    window.onload = () => {
-      showGreeting();
-      input.focus();
-    };
+    showGreeting();
   </script>
 </body>
 </html>
