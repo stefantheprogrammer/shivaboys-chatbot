@@ -3,32 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SBHC Chatbot Widget</title>
+  <title>SAGE.Ai Chatbot</title>
   <style>
     * {
       box-sizing: border-box;
     }
 
     body {
-      font-family: Arial, sans-serif;
       margin: 0;
-      padding: 0;
-      background: #f2f6fb;
+      font-family: Arial, sans-serif;
     }
 
     #chat-widget-container {
-      position: fixed;
-      bottom: 20px;
-      right: 20px;
-      width: 350px;
-      height: 500px;
-      background: white;
-      box-shadow: 0 0 10px rgba(0,0,0,0.15);
-      border-radius: 12px;
+      width: 100%;
+      height: 100%;
+      max-width: 100vw;
+      max-height: 100vh;
       display: flex;
       flex-direction: column;
-      overflow: hidden;
-      z-index: 9999;
+      border: none;
     }
 
     #chat-header {
@@ -40,23 +33,20 @@
       justify-content: space-between;
     }
 
-    #chat-header-left {
+    #chat-header .branding {
       display: flex;
       align-items: center;
-    }
-
-    #chat-header-left img {
-      width: 28px;
-      height: 28px;
-      margin-right: 8px;
-    }
-
-    #chat-header-left span {
+      gap: 10px;
       font-weight: bold;
-      font-size: 14px;
+      font-size: 16px;
     }
 
-    #minimize-btn {
+    #chat-header img {
+      width: 30px;
+      height: 30px;
+    }
+
+    #toggle-btn {
       background: none;
       border: none;
       color: white;
@@ -64,17 +54,27 @@
       cursor: pointer;
     }
 
+    #chat-content {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      background: #f2f6fb;
+      overflow: hidden;
+    }
+
     #chatbox {
       flex-grow: 1;
       overflow-y: auto;
+      border: 1px solid #ddd;
+      border-radius: 8px;
       padding: 10px;
-      background: #fff;
+      background: white;
     }
 
     .message {
       margin: 8px 0;
       line-height: 1.4;
-      word-wrap: break-word;
     }
 
     .user {
@@ -90,30 +90,29 @@
 
     #input-area {
       display: flex;
-      padding: 8px;
-      border-top: 1px solid #ccc;
-      background: #fafafa;
+      gap: 5px;
+      margin-top: 10px;
     }
 
-    #user-input {
+    input[type="text"] {
       flex-grow: 1;
       padding: 8px;
-      font-size: 14px;
       border-radius: 5px;
       border: 1px solid #ccc;
+      font-size: 14px;
     }
 
-    #send-btn {
+    button {
       padding: 8px 12px;
       background: #003366;
       border: none;
       color: white;
       border-radius: 5px;
-      margin-left: 5px;
       cursor: pointer;
+      font-size: 14px;
     }
 
-    #send-btn:disabled {
+    button:disabled {
       background: #999;
       cursor: not-allowed;
     }
@@ -122,44 +121,52 @@
       font-size: 10px;
       color: #666;
       text-align: center;
-      padding: 4px;
+      margin-top: 5px;
     }
 
-    /* Mobile-friendly */
-    @media (max-width: 500px) {
-      #chat-widget-container {
-        width: 90%;
-        height: 90%;
-        bottom: 5%;
-        right: 5%;
+    /* Responsive adjustments */
+    @media (max-width: 600px) {
+      #chat-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 5px;
       }
+      #chat-header .branding {
+        font-size: 14px;
+      }
+    }
 
-      #chat-header-left span {
-        font-size: 13px;
-      }
+    .minimized #chat-content,
+    .minimized footer {
+      display: none;
+    }
 
-      #chat-header-left img {
-        width: 24px;
-        height: 24px;
-      }
+    .minimized {
+      height: auto !important;
     }
   </style>
 </head>
 <body>
   <div id="chat-widget-container">
     <div id="chat-header">
-      <div id="chat-header-left">
-        <img src="https://shivaboys.edu.tt/images/sage.png" alt="SAGE logo" />
-        <span>SAGE AI</span>
+      <div class="branding">
+        <img src="https://shivaboys.edu.tt/images/sage.png" alt="SAGE Logo" />
+        SAGE.Ai
       </div>
-      <button id="minimize-btn" title="Minimize">—</button>
+      <button id="toggle-btn" title="Minimize">−</button>
     </div>
 
-    <div id="chatbox" aria-live="polite"></div>
-
-    <div id="input-area">
-      <input id="user-input" type="text" placeholder="Ask me anything..." aria-label="Ask a question" />
-      <button id="send-btn">Send</button>
+    <div id="chat-content">
+      <div id="chatbox" aria-live="polite"></div>
+      <div id="input-area">
+        <input
+          id="user-input"
+          type="text"
+          placeholder="Ask me anything..."
+          aria-label="Ask a question"
+        />
+        <button id="send-btn">Send</button>
+      </div>
     </div>
 
     <footer>Powered by StefanTheProgrammer</footer>
@@ -167,13 +174,13 @@
 
   <script>
     const container = document.getElementById("chat-widget-container");
+    const toggleBtn = document.getElementById("toggle-btn");
     const chatbox = document.getElementById("chatbox");
     const input = document.getElementById("user-input");
     const sendBtn = document.getElementById("send-btn");
-    const minimizeBtn = document.getElementById("minimize-btn");
 
-    let isMinimized = false;
-    let firstMessage = true;
+    let firstInteraction = true;
+    let minimized = false;
 
     function appendMessage(text, sender) {
       const div = document.createElement("div");
@@ -186,11 +193,6 @@
     async function sendMessage() {
       const message = input.value.trim();
       if (!message) return;
-
-      if (firstMessage) {
-        appendMessage("Hi! I'm Sage. How can I help you today?", "bot");
-        firstMessage = false;
-      }
 
       appendMessage(message, "user");
       input.value = "";
@@ -218,33 +220,23 @@
       input.focus();
     }
 
-    function toggleChat() {
-      isMinimized = !isMinimized;
-      if (isMinimized) {
-        container.style.height = "40px";
-        chatbox.style.display = "none";
-        document.getElementById("input-area").style.display = "none";
-        minimizeBtn.textContent = "+";
-      } else {
-        container.style.height = window.innerWidth < 500 ? "90%" : "500px";
-        chatbox.style.display = "block";
-        document.getElementById("input-area").style.display = "flex";
-        minimizeBtn.textContent = "—";
-      }
-    }
+    toggleBtn.addEventListener("click", () => {
+      minimized = !minimized;
+      container.classList.toggle("minimized", minimized);
+      toggleBtn.textContent = minimized ? "+" : "−";
+    });
 
-    minimizeBtn.addEventListener("click", toggleChat);
     sendBtn.addEventListener("click", sendMessage);
     input.addEventListener("keypress", (e) => {
       if (e.key === "Enter") sendMessage();
     });
 
-    // Auto greeting if box opens
-    window.addEventListener("load", () => {
-      setTimeout(() => {
-        appendMessage("Hi! I'm Sage. How can I help you today?", "bot");
-        firstMessage = false;
-      }, 500);
+    // Initial one-time greeting
+    window.addEventListener("DOMContentLoaded", () => {
+      if (firstInteraction) {
+        appendMessage("👋 Hi there! Welcome to Shiva Boys' Hindu College! <br>I'm Sage AI — How can I help you today?", "bot");
+        firstInteraction = false;
+      }
     });
   </script>
 </body>
