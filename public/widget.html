@@ -3,159 +3,101 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Sage.AI Chatbot</title>
+  <title>Sage AI Chatbot</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 0;
       padding: 0;
-      background: #f2f6fb;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-    }
-
-    #chat-widget {
-      width: 100%;
       height: 100%;
       display: flex;
       flex-direction: column;
-      box-shadow: 0 0 10px rgba(0,0,0,0.15);
-      border-radius: 10px;
+      background: #f2f6fb;
     }
-
     #chat-header {
       background: #003366;
       color: white;
+      padding: 10px;
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      padding: 8px 12px;
-      border-top-left-radius: 10px;
-      border-top-right-radius: 10px;
+      gap: 10px;
     }
-
     #chat-header img {
       height: 30px;
-      margin-right: 8px;
     }
-
-    #chat-title {
-      display: flex;
-      align-items: center;
+    #chat-header span {
       font-weight: bold;
+      font-size: 16px;
     }
-
-    #toggle-btn {
-      background: none;
-      border: none;
-      color: white;
-      font-size: 20px;
-      cursor: pointer;
-    }
-
-    #chat-content {
-      flex-grow: 1;
-      padding: 10px;
-      background: white;
-      display: flex;
-      flex-direction: column;
-    }
-
     #chatbox {
       flex-grow: 1;
       overflow-y: auto;
-      margin-bottom: 10px;
-      scroll-behavior: smooth;
+      padding: 10px;
+      background: white;
+      border-top: 1px solid #ccc;
+      border-bottom: 1px solid #ccc;
     }
-
     .message {
-      margin: 6px 0;
+      margin: 8px 0;
       line-height: 1.4;
     }
-
     .user {
       text-align: right;
       color: #003366;
       font-weight: bold;
     }
-
     .bot {
       text-align: left;
       color: #007bff;
     }
-
     #input-area {
       display: flex;
       gap: 5px;
+      padding: 10px;
+      background: #fff;
+      border-top: 1px solid #ccc;
     }
-
     input[type="text"] {
-      flex-grow: 1;
+      flex: 1;
       padding: 8px;
       border-radius: 5px;
       border: 1px solid #ccc;
-      font-size: 14px;
     }
-
-    button#send-btn {
+    button {
       padding: 8px 12px;
       background: #003366;
       border: none;
       color: white;
       border-radius: 5px;
       cursor: pointer;
-      font-size: 14px;
     }
-
-    button:disabled {
-      background: #999;
-      cursor: not-allowed;
-    }
-
     footer {
       font-size: 10px;
       color: #666;
       text-align: center;
       padding: 5px;
-      background: #f2f6fb;
-    }
-
-    .hidden {
-      display: none !important;
+      background: #f9f9f9;
     }
   </style>
 </head>
 <body>
-  <div id="chat-widget">
-    <div id="chat-header">
-      <div id="chat-title">
-        <img src="https://shivaboys.edu.tt/images/sage.png" alt="Sage Logo" />
-        SAGE.AI
-      </div>
-      <button id="toggle-btn">−</button>
-    </div>
-    <div id="chat-content">
-      <div id="chatbox" aria-live="polite"></div>
-      <div id="input-area">
-        <input
-          id="user-input"
-          type="text"
-          placeholder="Ask me anything..."
-          aria-label="Ask a question"
-        />
-        <button id="send-btn">Send</button>
-      </div>
-      <footer>Powered by StefanTheProgrammer</footer>
-    </div>
+  <div id="chat-header">
+    <img src="https://shivaboys.edu.tt/images/sage.png" alt="Sage.Ai Logo">
+    <span>Sage.Ai</span>
   </div>
+  <div id="chatbox" aria-live="polite"></div>
+  <div id="input-area">
+    <input id="user-input" type="text" placeholder="Ask me anything..." aria-label="Ask a question" />
+    <button id="send-btn">Send</button>
+  </div>
+  <footer>Powered by StefanTheProgrammer</footer>
 
   <script>
     const chatbox = document.getElementById("chatbox");
     const input = document.getElementById("user-input");
     const sendBtn = document.getElementById("send-btn");
-    const toggleBtn = document.getElementById("toggle-btn");
-    const chatContent = document.getElementById("chat-content");
+
+    let firstMessage = true;
 
     function appendMessage(text, sender) {
       const div = document.createElement("div");
@@ -169,6 +111,11 @@
       const message = input.value.trim();
       if (!message) return;
 
+      if (firstMessage) {
+        appendMessage("Hi! Welcome to Shiva Boys' Hindu College! I'm Sage your AI assistant. How can I help you today?", "bot");
+        firstMessage = false;
+      }
+
       appendMessage(message, "user");
       input.value = "";
       sendBtn.disabled = true;
@@ -180,11 +127,11 @@
           body: JSON.stringify({ query: message })
         });
 
+        const data = await response.json();
+
         if (!response.ok) {
-          const err = await response.json();
-          appendMessage(`Error: ${err.error || "Invalid response"}`, "bot");
+          appendMessage(`Error: ${data.error || "Invalid response"}`, "bot");
         } else {
-          const data = await response.json();
           appendMessage(data.answer || "Sorry, I didn't understand that.", "bot");
         }
       } catch (error) {
@@ -198,16 +145,6 @@
     sendBtn.addEventListener("click", sendMessage);
     input.addEventListener("keypress", (e) => {
       if (e.key === "Enter") sendMessage();
-    });
-
-    toggleBtn.addEventListener("click", () => {
-      chatContent.classList.toggle("hidden");
-      toggleBtn.textContent = chatContent.classList.contains("hidden") ? "+" : "−";
-    });
-
-    // Add greeting on first load
-    window.addEventListener("DOMContentLoaded", () => {
-      appendMessage("Hi! I'm Sage.AI, your virtual assistant. How can I help you today?", "bot");
     });
   </script>
 </body>
