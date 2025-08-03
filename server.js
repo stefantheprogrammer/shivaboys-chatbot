@@ -1,86 +1,90 @@
 import express from "express";
 import cors from "cors";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import { ChatGroq } from "@langchain/groq";
 import { HuggingFaceInferenceEmbeddings } from "@langchain/community/embeddings/hf";
-import { RetrievalQAChain } from "langchain/chains";
-import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { JSONLoader } from "langchain/document_loaders/fs/json";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
-import { Document } from "@langchain/core/documents";
-
-// Helpers to resolve directory paths
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { RetrievalQAChain } from "langchain/chains";
+import * as fs from "fs";
 
 const app = express();
+const port = process.env.PORT || 3000;
+
 app.use(cors());
 app.use(express.json());
 
-// ✅ Serve widget.html and other static files from /public
-app.use(express.static("public"));
+// === Load JSON website data as documents ===
+const loader = new JSONLoader("data/website_data.json", {
+  textKey: "content",
+});
+const rawDocs = await loader.load();
 
-// ✅ Load website content (RAG data)
-const raw = fs.readFileSync(path.join(__dirname, "data", "website_data.json"), "utf-8");
-const pages = JSON.parse(raw);
-
-// ✅ Create documents from your pages
-const documents = pages.map((page) => new Document({ pageContent: page.content, metadata: { source: page.title } }));
-
-// ✅ Split documents
 const splitter = new RecursiveCharacterTextSplitter({
-  chunkSize: 1000,
-  chunkOverlap: 200,
+  chunkSize: 500,
+  chunkOverlap: 50,
 });
-const splitDocs = await splitter.splitDocuments(documents);
+const splitDocs = await splitter.splitDocuments(rawDocs);
 
-// ✅ Embed using HuggingFace
+// === HuggingFace Embeddings (RAG) ===
 const embeddings = new HuggingFaceInferenceEmbeddings({
-  apiKey: process.env.HUGGINGFACE_API_KEY,
-  model: "sentence-transformers/all-mpnet-base-v2",
+  model: "sentence-transformers/all-MiniLM-L6-v2",
 });
-
-// ✅ Store in-memory vector DB
 const vectorStore = await MemoryVectorStore.fromDocuments(splitDocs, embeddings);
 
-// ✅ Set up retriever
-const retriever = vectorStore.asRetriever();
-
-// ✅ Set up Groq chat model (for AI + RAG)
+// === Groq LLM (AI) ===
 const chatModel = new ChatGroq({
-  apiKey: process.env.GROQ_API_KEY,
   model: "llama3-8b-8192",
+  apiKey: process.env.GROQ_API_KEY,
 });
 
-// ✅ Use a hybrid RAG QA Chain
-const chain = RetrievalQAChain.fromLLM(chatModel, retriever, {
-  returnSourceDocuments: true,
-});
+// === RAG Chain Setup ===
+const chain = RetrievalQAChain.fromLLM(chatModel, vectorStore.asRetriever());
 
-// ✅ Handle incoming questions
+// === POST endpoint ===
 app.post("/api/ask", async (req, res) => {
-  const question = req.body.question;
-  if (!question || question.trim() === "") {
-    return res.status(400).json({ error: "Question is required." });
+  const query = req.body.query;
+  if (!query) {
+    return res.status(400).json({ error: "Missing query" });
   }
 
   try {
-    const result = await chain.invoke({ query: question });
+    // === Try answering via RAG first ===
+    const ragResult = await chain.call({ query });
+    const ragAnswer = ragResult.text;
 
-    if (!result || !result.text) {
-      return res.json({ answer: "Sorry, I didn't understand that." });
+    // === Basic fallback detection ===
+    const irrelevantResponses = [
+      "I'm sorry, but I don't know the answer to that question.",
+      "Sorry, I didn't understand that.",
+      "I don't know the answer",
+    ];
+
+    const isRagRelevant = ragAnswer && !irrelevantResponses.some(msg => ragAnswer.toLowerCase().includes(msg.toLowerCase()));
+
+    if (isRagRelevant) {
+      return res.json({ answer: ragAnswer });
     }
 
-    res.json({ answer: result.text });
-  } catch (err) {
-    console.error("Error:", err);
-    res.status(500).json({ error: "An error occurred while processing your request." });
+    // === Fallback to Groq AI ===
+    const aiResponse = await chatModel.invoke([
+      { role: "user", content: query },
+    ]);
+
+    return res.json({ answer: aiResponse.content });
+
+  } catch (error) {
+    console.error("Error handling /api/ask:", error);
+    res.status(500).json({ error: "Server error" });
   }
 });
 
-// ✅ Start the server
-const port = process.env.PORT || 3000;
+// === Home route ===
+app.get("/", (req, res) => {
+  res.send("Shiva Boys Chatbot backend is running.");
+});
+
+// === Start server ===
 app.listen(port, () => {
-  console.log(`✅ Server running on port ${port}`);
+  console.log(`Server is running on port ${port}`);
 });
