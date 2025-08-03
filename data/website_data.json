@@ -1,18 +1,22 @@
 [
   {
     "title": "School Address",
-    "content": "Shiva Boys' Hindu College is located at 45 Caroni Savannah Road, Chaguanas, Trinidad and Tobago."
+    "content": "Shiva Boys' Hindu College is located at Bonne Aventure Road, Gasparillo, Trinidad and Tobago."
   },
   {
-    "title": "Contact Information",
-    "content": "You can contact us at (868) 665-1234 or email us at info@shivaboys.edu.tt."
+    "title": "School Contact",
+    "content": "You can contact the school at (868) 650-1873 or via email at shivaboyscollege@gmail.com."
   },
   {
     "title": "Environmental Club",
-    "content": "The Envi Club at Shiva Boys promotes awareness about climate change and sustainability."
+    "content": "The Environmental Club, also known as the Envi Club, raises awareness on environmental issues and organizes eco-friendly activities at the school."
   },
   {
-    "title": "Input Device Definition",
-    "content": "An input device in computing is a hardware component used to provide data and control signals to a computer. Examples include keyboards, mice, and scanners."
+    "title": "Mission Statement",
+    "content": "Our mission is to provide a holistic education rooted in Hindu philosophy and to develop academically competent, morally upright, and socially responsible individuals."
+  },
+  {
+    "title": "Principal\u2019s Welcome",
+    "content": "Our Principal welcomes all students and stakeholders, encouraging a spirit of excellence and community throughout their academic journey."
   }
 ]
