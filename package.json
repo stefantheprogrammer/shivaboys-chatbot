@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@huggingface/inference": "4.6.1",
+    "@huggingface/transformers": "^3.7.1",
     "@langchain/community": "^0.3.49",
     "@langchain/core": "^0.3.59",
     "@langchain/groq": "^0.2.3",
