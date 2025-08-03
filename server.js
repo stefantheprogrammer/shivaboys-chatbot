@@ -1,22 +1,30 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import fs from "fs";
 import { ChatGroq } from "@langchain/groq";
 import { HuggingFaceTransformersEmbeddings } from "@langchain/community/embeddings/huggingface_transformers";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { RetrievalQAChain } from "langchain/chains";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
 dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Serve static files (like widget.html) from the 'public' folder
+app.use(express.static(path.join(__dirname, "public")));
+
 const PORT = process.env.PORT || 3000;
 
-// Load and prepare documents
-const data = JSON.parse(fs.readFileSync("data/website_data.json", "utf-8"));
+// Load documents
+const data = JSON.parse(fs.readFileSync(path.join(__dirname, "data", "website_data.json"), "utf-8"));
 const docs = data.map((item) => ({
   pageContent: item.content,
   metadata: { source: item.title || "Untitled" },
@@ -27,42 +35,27 @@ const embeddings = new HuggingFaceTransformersEmbeddings({
   modelName: "Xenova/all-MiniLM-L6-v2",
 });
 
-// Create vector store from documents
 const vectorStore = await MemoryVectorStore.fromTexts(
   docs.map((d) => d.pageContent),
   docs.map((d) => d.metadata),
   embeddings
 );
 
-// Initialize Groq chat model
+// Set up Groq chat model
 const model = new ChatGroq({
   apiKey: process.env.GROQ_API_KEY,
   model: "llama3-8b-8192",
 });
 
-// Create retrieval QA chain
 const chain = RetrievalQAChain.fromLLM(model, vectorStore.asRetriever());
 
 app.post("/api/ask", async (req, res) => {
   try {
     const { question } = req.body;
-
-    // Try retrieval QA first
     const response = await chain.call({ query: question });
-
-    if (
-      response.text && 
-      (!response.sourceDocuments || response.sourceDocuments.length === 0)
-    ) {
-      // If no source documents found, fallback to plain LLM query
-      const fallbackResponse = await model.invoke(question);
-      return res.json({ answer: fallbackResponse.text || fallbackResponse });
-    }
-
-    // Respond with retrieval answer
     res.json({ answer: response.text });
   } catch (error) {
-    console.error("Error in /api/ask:", error);
+    console.error("Error:", error);
     res.status(500).json({ error: "Something went wrong" });
   }
 });
