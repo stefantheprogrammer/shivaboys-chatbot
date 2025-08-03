@@ -2,133 +2,175 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>SBHC Chatbot Widget</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Sage.Ai Chatbot</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
       margin: 0;
-      padding: 10px;
-      background: #f2f6fb;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
       display: flex;
       flex-direction: column;
       height: 100vh;
     }
-    #chatbox {
-      flex-grow: 1;
-      overflow-y: auto;
-      border: 1px solid #ddd;
-      padding: 10px;
-      background: white;
-      border-radius: 8px;
-      margin-bottom: 10px;
-      scroll-behavior: smooth;
-    }
-    .message {
-      margin: 8px 0;
-      line-height: 1.4;
-    }
-    .user {
-      text-align: right;
-      color: #003366;
-      font-weight: bold;
-    }
-    .bot {
-      text-align: left;
-      color: #007bff;
-    }
-    #input-area {
-      display: flex;
-      gap: 5px;
-    }
-    input[type="text"] {
-      flex-grow: 1;
-      padding: 8px;
-      border-radius: 5px;
-      border: 1px solid #ccc;
-      font-size: 14px;
-    }
-    button {
-      padding: 8px 12px;
+
+    #chat-header {
       background: #003366;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px;
+    }
+
+    #chat-header img {
+      height: 30px;
+      margin-right: 10px;
+    }
+
+    #chat-header-title {
+      display: flex;
+      align-items: center;
+    }
+
+    #toggle-btn {
+      background: none;
       border: none;
       color: white;
-      border-radius: 5px;
+      font-size: 20px;
       cursor: pointer;
-      font-size: 14px;
     }
-    button:disabled {
-      background: #999;
-      cursor: not-allowed;
+
+    #chat-container {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
     }
-    footer {
-      font-size: 10px;
-      color: #666;
+
+    #chat-messages {
+      flex: 1;
+      padding: 10px;
+      overflow-y: auto;
+      background: white;
+    }
+
+    #user-input {
+      display: flex;
+      padding: 10px;
+      background: #eee;
+    }
+
+    #user-input input {
+      flex: 1;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+
+    #user-input button {
+      padding: 8px 12px;
+      margin-left: 8px;
+      background: #003366;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    #chat-footer {
       text-align: center;
-      margin-top: 5px;
+      font-size: 12px;
+      padding: 6px;
+      color: #888;
+      background: #f0f0f0;
+    }
+
+    .user-msg {
+      text-align: right;
+      color: #003366;
+      margin-bottom: 8px;
+    }
+
+    .bot-msg {
+      text-align: left;
+      color: #333;
+      margin-bottom: 8px;
     }
   </style>
 </head>
 <body>
-  <div id="chatbox" aria-live="polite"></div>
-  <div id="input-area">
-    <input
-      id="user-input"
-      type="text"
-      placeholder="Ask me anything..."
-      aria-label="Ask a question"
-    />
-    <button id="send-btn">Send</button>
+  <div id="chat-header">
+    <div id="chat-header-title">
+      <img src="https://shivaboys.edu.tt/images/sage.png" alt="Sage Logo">
+      <strong>Sage.Ai</strong>
+    </div>
+    <button id="toggle-btn" onclick="toggleChat()">−</button>
   </div>
-  <footer>Powered by StefanTheProgrammer</footer>
+
+  <div id="chat-container">
+    <div id="chat-messages"></div>
+    <div id="user-input">
+      <input type="text" id="message-input" placeholder="Type your message..." />
+      <button onclick="sendMessage()">Send</button>
+    </div>
+    <div id="chat-footer">Powered by StefanTheProgrammer</div>
+  </div>
 
   <script>
-    const chatbox = document.getElementById("chatbox");
-    const input = document.getElementById("user-input");
-    const sendBtn = document.getElementById("send-btn");
+    const chatMessages = document.getElementById('chat-messages');
+    const messageInput = document.getElementById('message-input');
 
-    function appendMessage(text, sender) {
-      const div = document.createElement("div");
-      div.className = "message " + sender;
-      div.textContent = text;
-      chatbox.appendChild(div);
-      chatbox.scrollTop = chatbox.scrollHeight;
+    function appendMessage(text, sender = 'bot') {
+      const msgDiv = document.createElement('div');
+      msgDiv.className = sender === 'user' ? 'user-msg' : 'bot-msg';
+      msgDiv.textContent = text;
+      chatMessages.appendChild(msgDiv);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
     async function sendMessage() {
-      const message = input.value.trim();
-      if (!message) return;
+      const userMsg = messageInput.value.trim();
+      if (!userMsg) return;
 
-      appendMessage(message, "user");
-      input.value = "";
-      sendBtn.disabled = true;
+      appendMessage(userMsg, 'user');
+      messageInput.value = '';
 
       try {
-        const response = await fetch("https://shivaboys-chatbot.onrender.com/api/ask", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: message }), // fixed here
+        const res = await fetch('/api/ask', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ question: userMsg })
         });
 
-        if (!response.ok) {
-          const err = await response.json();
-          appendMessage(`Error: ${err.error || "Invalid response"}`, "bot");
+        if (res.ok) {
+          const data = await res.json();
+          appendMessage(data.answer || 'No answer found.');
         } else {
-          const data = await response.json();
-          appendMessage(data.answer || "Sorry, I didn't understand that.", "bot");
+          appendMessage('Error: Unable to get a response.');
         }
-      } catch (error) {
-        appendMessage("Sorry, something went wrong while contacting the server.", "bot");
+      } catch (err) {
+        appendMessage('Error: Network issue.');
       }
-
-      sendBtn.disabled = false;
-      input.focus();
     }
 
-    sendBtn.addEventListener("click", sendMessage);
-    input.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") sendMessage();
+    messageInput.addEventListener('keypress', e => {
+      if (e.key === 'Enter') sendMessage();
     });
+
+    function toggleChat() {
+      const container = document.getElementById('chat-container');
+      const toggleBtn = document.getElementById('toggle-btn');
+      if (container.style.display === 'none') {
+        container.style.display = 'flex';
+        toggleBtn.textContent = '−';
+      } else {
+        container.style.display = 'none';
+        toggleBtn.textContent = '+';
+      }
+    }
   </script>
 </body>
 </html>
