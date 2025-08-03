@@ -2,7 +2,7 @@ import express from "express";
 import cors from "cors";
 import { ChatGroq } from "@langchain/groq";
 import { HuggingFaceInferenceEmbeddings } from "@langchain/community/embeddings/hf";
-import { JSONLoader } from "langchain/document_loaders/fs/json.js"; // <-- add `.js` for compatibility
+import { JSONLoader } from "langchain/document_loaders"; // <-- add `.js` for compatibility
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { RetrievalQAChain } from "langchain/chains";
