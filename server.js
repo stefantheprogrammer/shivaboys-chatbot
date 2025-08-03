@@ -7,7 +7,15 @@ import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { RetrievalQAChain } from "langchain/chains";
 import { Document } from "@langchain/core/documents";
 import * as fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 
+// Required for __dirname in ESModules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Serve static files from /public
+app.use(express.static(path.join(__dirname, "public")));
 const app = express();
 const port = process.env.PORT || 3000;
 
