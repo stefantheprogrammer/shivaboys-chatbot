@@ -1,65 +1,97 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import { ChatGroq } from "@langchain/groq";
-import { HuggingFaceTransformersEmbeddings } from "@langchain/community/embeddings/huggingface_transformers";
-import { MemoryVectorStore } from "langchain/vectorstores/memory";
-import { RetrievalQAChain } from "langchain/chains";
 import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { ChatGroq } from "@langchain/groq";
+import { HuggingFaceTransformersEmbeddings } from "@langchain/community/embeddings/hf_transformers";
+import { MemoryVectorStore } from "langchain/vectorstores/memory";
+import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
+import { RunnableSequence } from "@langchain/core/runnables";
+import { ChatPromptTemplate } from "@langchain/core/prompts";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import { pull } from "langchain/hub";
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve static files (like widget.html) from the 'public' folder
-app.use(express.static(path.join(__dirname, "public")));
+const PORT = process.env.PORT || 10000;
 
-const PORT = process.env.PORT || 3000;
+// Load website data
+const raw = fs.readFileSync("website_data.json", "utf-8");
+const pages = JSON.parse(raw);
 
-// Load documents
-const data = JSON.parse(fs.readFileSync(path.join(__dirname, "data", "website_data.json"), "utf-8"));
-const docs = data.map((item) => ({
-  pageContent: item.content,
-  metadata: { source: item.title || "Untitled" },
+// Prepare documents
+const documents = pages.map((page) => ({
+  pageContent: `${page.title}\n\n${page.content}`,
+  metadata: { source: page.title },
 }));
 
-// Set up embeddings
-const embeddings = new HuggingFaceTransformersEmbeddings({
-  modelName: "Xenova/all-MiniLM-L6-v2",
+// Split documents into chunks
+const splitter = new RecursiveCharacterTextSplitter({
+  chunkSize: 1000,
+  chunkOverlap: 100,
 });
+const splitDocs = await splitter.splitDocuments(documents);
 
-const vectorStore = await MemoryVectorStore.fromTexts(
-  docs.map((d) => d.pageContent),
-  docs.map((d) => d.metadata),
-  embeddings
-);
+// Create vector store
+const embeddings = new HuggingFaceTransformersEmbeddings();
+const store = await MemoryVectorStore.fromDocuments(splitDocs, embeddings);
 
-// Set up Groq chat model
+// Load prompt from LangChain hub
+const prompt = await pull("rlm/rag-prompt");
+
+// Setup chat model and chain
 const model = new ChatGroq({
   apiKey: process.env.GROQ_API_KEY,
   model: "llama3-8b-8192",
 });
 
-const chain = RetrievalQAChain.fromLLM(model, vectorStore.asRetriever());
+const retriever = store.asRetriever();
+const chain = await RunnableSequence.from([
+  {
+    context: retriever.pipe(docs => docs.map(doc => doc.pageContent).join("\n\n")),
+    question: input => input.query,
+  },
+  prompt,
+  model,
+  new StringOutputParser(),
+]);
 
+// Serve static widget files
+app.use("/", express.static("public"));
+
+// RAG API endpoint
 app.post("/api/ask", async (req, res) => {
+  const question = req.body.message;
+  if (!question) return res.status(400).json({ error: "Missing message" });
+
   try {
-    const { question } = req.body;
-    const response = await chain.call({ query: question });
-    res.json({ answer: response.text });
-  } catch (error) {
-    console.error("Error:", error);
-    res.status(500).json({ error: "Something went wrong" });
+    let answer = "";
+    const response = await chain.invoke({ query: question });
+    answer = response;
+
+    // Fallback to LLM-only response if context-based answer is empty or vague
+    if (
+      !answer ||
+      answer.toLowerCase().includes("i don't know") ||
+      answer.toLowerCase().includes("does not provide") ||
+      answer.toLowerCase().includes("not available")
+    ) {
+      const fallback = await model.invoke(`Answer the following as best you can:\n\n${question}`);
+      answer = fallback.content;
+    }
+
+    res.json({ answer });
+  } catch (err) {
+    console.error("Error:", err);
+    res.status(500).json({ error: "Something went wrong." });
   }
 });
 
+// Start server
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
