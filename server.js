@@ -7,6 +7,7 @@ import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { ChatGroq } from "@langchain/groq";
 import { RetrievalQAChain } from "langchain/chains";
 import { BufferMemory } from "langchain/memory";
+import { Document } from "@langchain/core/documents";
 
 dotenv.config();
 
@@ -23,34 +24,45 @@ async function loadDocs() {
   const docs = [
     {
       title: "Welcome",
-      content: "Shiva Boys’ Hindu College is a government-assisted secondary school located in Trinidad and Tobago..."
+      content: "Shiva Boys' Hindu College is a government-assisted secondary school located in Trinidad and Tobago..."
     },
     {
-      title: "Curriculum",
+      title: "Curriculum", 
       content: "The curriculum includes Mathematics, English, Science, Information Technology, Business Studies, and Modern Languages..."
     },
     // Add more documents as needed
   ];
 
-  const formattedDocs = docs.map(doc => ({
+  // Convert to Document objects
+  const formattedDocs = docs.map(doc => new Document({
     pageContent: doc.content,
     metadata: { title: doc.title }
   }));
 
-  const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 500, chunkOverlap: 50 });
+  const splitter = new RecursiveCharacterTextSplitter({ 
+    chunkSize: 500, 
+    chunkOverlap: 50 
+  });
+  
   const splitDocs = await splitter.splitDocuments(formattedDocs);
 
   const embeddings = new HuggingFaceTransformersEmbeddings({
-    modelName: "sentence-transformers/all-MiniLM-L6-v2"
+    modelName: "Xenova/all-MiniLM-L6-v2"
   });
 
   vectorStore = await MemoryVectorStore.fromDocuments(splitDocs, embeddings);
+  console.log("✅ Vector store loaded successfully");
 }
 
-await loadDocs();
+// Initialize on startup
+loadDocs().catch(console.error);
 
 app.post("/chat", async (req, res) => {
   const { message } = req.body;
+
+  if (!vectorStore) {
+    return res.status(500).json({ error: "Vector store not initialized" });
+  }
 
   try {
     const model = new ChatGroq({
@@ -59,18 +71,29 @@ app.post("/chat", async (req, res) => {
       temperature: 0.7,
     });
 
-    const chain = RetrievalQAChain.fromLLM(model, vectorStore.asRetriever(), {
-      memory: new BufferMemory(),
-      returnSourceDocuments: true,
-    });
+    const chain = RetrievalQAChain.fromLLM(
+      model, 
+      vectorStore.asRetriever(),
+      {
+        returnSourceDocuments: true,
+      }
+    );
 
     const response = await chain.call({ query: message });
 
-    res.json({ response: response.text });
+    res.json({ 
+      response: response.text,
+      sources: response.sourceDocuments?.map(doc => doc.metadata.title) || []
+    });
   } catch (error) {
     console.error("Chat error:", error);
     res.status(500).json({ error: "Failed to generate response" });
   }
+});
+
+// Health check endpoint
+app.get("/health", (req, res) => {
+  res.json({ status: "OK", vectorStore: !!vectorStore });
 });
 
 app.listen(port, () => {
