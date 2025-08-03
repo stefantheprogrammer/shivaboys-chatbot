@@ -18,8 +18,36 @@
       display: flex;
       flex-direction: column;
       height: 100%;
-      overflow: hidden;
-      border-radius: 10px;
+    }
+
+    #chat-header {
+      display: flex;
+      align-items: center;
+      background: white;
+      padding: 10px 15px;
+      border-bottom: 1px solid #ccc;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+      gap: 10px;
+    }
+
+    #chat-header img {
+      height: 30px;
+    }
+
+    #chat-header span {
+      font-weight: bold;
+      color: #003366;
+      font-size: 16px;
+    }
+
+    #chat-minimize {
+      margin-left: auto;
+      background: #003366;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 5px;
+      cursor: pointer;
     }
 
     #chat-messages {
@@ -64,13 +92,21 @@
 </head>
 <body>
   <div id="chat-container">
+    <div id="chat-header">
+      <img src="https://shivaboys.edu.tt/images/sage.png" alt="Logo">
+      <span>Sage.Ai</span>
+      <button id="chat-minimize">_</button>
+    </div>
+
     <div id="chat-messages">
       <div><strong>Sage.Ai:</strong> Hi there! How can I assist you today?</div>
     </div>
+
     <form id="chat-form">
       <input id="chat-input" type="text" placeholder="Type your message..." required />
       <button id="chat-submit" type="submit">Send</button>
     </form>
+
     <div id="chat-footer">Powered by StefanTheProgrammer</div>
   </div>
 
@@ -101,6 +137,11 @@
       } catch (err) {
         messages.innerHTML += `<div><strong>Sage.Ai:</strong> Sorry, something went wrong.</div>`;
       }
+    });
+
+    // Minimize on button click (sends message to parent)
+    document.getElementById("chat-minimize").addEventListener("click", () => {
+      window.parent.postMessage({ action: 'minimize-widget' }, '*');
     });
   </script>
 </body>
