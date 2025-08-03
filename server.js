@@ -1,5 +1,7 @@
 import express from "express";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 import { ChatGroq } from "@langchain/groq";
 import { HuggingFaceInferenceEmbeddings } from "@langchain/community/embeddings/hf";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
@@ -7,23 +9,22 @@ import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { RetrievalQAChain } from "langchain/chains";
 import { Document } from "@langchain/core/documents";
 import * as fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 
-// Required for __dirname in ESModules
+// Get __dirname in ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Serve static files from /public
-app.use(express.static(path.join(__dirname, "public")));
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 
+// Serve static files (like widget.html) from /public folder
+app.use(express.static(path.join(__dirname, "public")));
+
 try {
-  // === Load and convert JSON to LangChain documents ===
+  // Load and parse your JSON website data manually
   const websiteData = JSON.parse(fs.readFileSync("data/website_data.json", "utf-8"));
   const rawDocs = websiteData.map((entry) => {
     return new Document({
@@ -32,29 +33,29 @@ try {
     });
   });
 
-  // === Split text into smaller chunks ===
+  // Split documents into chunks
   const splitter = new RecursiveCharacterTextSplitter({
     chunkSize: 500,
     chunkOverlap: 50,
   });
   const splitDocs = await splitter.splitDocuments(rawDocs);
 
-  // === Create embeddings from HuggingFace ===
+  // Create embeddings
   const embeddings = new HuggingFaceInferenceEmbeddings({
     model: "sentence-transformers/all-MiniLM-L6-v2",
   });
   const vectorStore = await MemoryVectorStore.fromDocuments(splitDocs, embeddings);
 
-  // === Set up the Groq model ===
+  // Initialize Groq chat model
   const chatModel = new ChatGroq({
     model: "llama3-8b-8192",
     apiKey: process.env.GROQ_API_KEY,
   });
 
-  // === Setup Retrieval-Augmented QA chain ===
+  // Setup RetrievalQA chain
   const chain = RetrievalQAChain.fromLLM(chatModel, vectorStore.asRetriever());
 
-  // === API endpoint to handle questions ===
+  // POST /api/ask endpoint
   app.post("/api/ask", async (req, res) => {
     const query = req.body.query;
     if (!query) {
@@ -79,7 +80,7 @@ try {
         return res.json({ answer: ragAnswer });
       }
 
-      // === Fallback to LLM if RAG fails ===
+      // Fallback to direct LLM chat
       const aiResponse = await chatModel.invoke([{ role: "user", content: query }]);
       return res.json({ answer: aiResponse.content });
 
@@ -89,12 +90,12 @@ try {
     }
   });
 
-  // === Health check route ===
+  // Health check root endpoint
   app.get("/", (req, res) => {
     res.send("Shiva Boys Chatbot backend is running.");
   });
 
-  // === Start the server ===
+  // Start the server
   app.listen(port, () => {
     console.log(`✅ Server is running on port ${port}`);
   });
