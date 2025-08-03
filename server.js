@@ -21,7 +21,8 @@ const PORT = process.env.PORT || 10000;
 
 // Load website data
 const rawData = fs.readFileSync('./data/website_data.json', 'utf8');
-const pages = JSON.parse(raw);
+const pages = JSON.parse(rawData); 
+
 
 // Prepare documents
 const documents = pages.map((page) => ({
