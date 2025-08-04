@@ -25,13 +25,23 @@ app.use(express.static(path.join(__dirname, "public")));
 
 try {
   // Load and parse your JSON website data manually
-  const websiteData = JSON.parse(fs.readFileSync("data/website_data.json", "utf-8"));
-  const rawDocs = websiteData.map((entry) => {
-    return new Document({
-      pageContent: entry.content,
-      metadata: { title: entry.title || "Untitled" },
-    });
+  // Load website data update HERE
+const websiteData = JSON.parse(fs.readFileSync("data/website_data.json", "utf-8"));
+
+// Load CSEC Math syllabus
+const mathSyllabus = JSON.parse(fs.readFileSync("data/csec_maths_syllabus.json", "utf-8"));
+
+// Combine both
+const combinedData = [...websiteData, ...mathSyllabus];
+
+// Convert to LangChain documents
+const rawDocs = combinedData.map((entry) => {
+  return new Document({
+    pageContent: entry.content,
+    metadata: { title: entry.title || "Untitled" },
   });
+});
+
 
   // Split documents into chunks
   const splitter = new RecursiveCharacterTextSplitter({
