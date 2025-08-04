@@ -81,8 +81,16 @@ try {
       }
 
       // Fallback to direct LLM chat
-      const aiResponse = await chatModel.invoke([{ role: "user", content: query }]);
-      return res.json({ answer: aiResponse.content });
+const systemMessage = {
+  role: "system",
+  content: "You are Sage, the AI assistant for Shiva Boys' Hindu College. Answer clearly and naturally without saying 'According to the context' or similar phrases."
+};
+
+const aiResponse = await chatModel.invoke([
+  systemMessage,
+  { role: "user", content: query }
+]);
+return res.json({ answer: aiResponse.content });
 
     } catch (error) {
       console.error("Error in /api/ask:", error);
