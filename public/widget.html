@@ -114,12 +114,20 @@ html, body {
     const chatMessages = document.getElementById("chat-messages");
 
     function appendMessage(role, text) {
-      const msg = document.createElement("div");
-      msg.className = `message ${role}`;
-      msg.textContent = text;
-      chatMessages.appendChild(msg);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
+  const msg = document.createElement("div");
+  msg.className = `message ${role}`;
+
+  // Replace newlines with <br> for line breaks
+  const formatted = text
+    .replace(/(?:\r\n|\r|\n)/g, "<br>")
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") // Optional: bold markdown
+    .replace(/`(.*?)`/g, "<code>$1</code>");           // Optional: inline code
+
+  msg.innerHTML = formatted;
+  chatMessages.appendChild(msg);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
 
     sendButton.onclick = async () => {
       const query = chatInput.value.trim();
