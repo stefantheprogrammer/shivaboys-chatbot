@@ -1,26 +1,145 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Shiva Boys Chatbot</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>Shiva Boys' AI Assistant</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f0f4f8;
+    }
+
+    #chat-widget {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      width: 100%;
+      background: white;
+    }
+
+    #chat-header {
+      background: #003366;
+      color: white;
+      padding: 10px 15px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #chat-header .chat-logo {
+      height: 30px;
+      margin-right: 10px;
+    }
+
+    #chat-box {
+      flex-grow: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    #chat-messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+    }
+
+    .message {
+      padding: 10px;
+      margin-bottom: 10px;
+      border-radius: 15px;
+      max-width: 80%;
+      word-wrap: break-word;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: #006dda;
+      color: white;
+      text-align: right;
+    }
+
+    .message.bot {
+      align-self: flex-start;
+      background: #e5e5e5;
+      color: black;
+    }
+
+    #chat-input-area {
+      display: flex;
+      padding: 10px;
+      border-top: 1px solid #ccc;
+      background: #f9f9f9;
+    }
+
+    #user-input {
+      flex: 1;
+      padding: 10px;
+      font-size: 14px;
+    }
+
+    #send-button {
+      padding: 10px 15px;
+      margin-left: 10px;
+      background-color: #003366;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    #chat-footer {
+      text-align: center;
+      padding: 8px;
+      font-size: 12px;
+      color: #555;
+      background: #f0f0f0;
+    }
+
+    #chat-minimize {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 20px;
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body>
   <div id="chat-widget">
     <div id="chat-header">
-      <span>Shiva Boys' AI Assistant</span>
+      <div style="display: flex; align-items: center;">
+        <img src="https://shivaboys.edu.tt/images/sage.png" alt="Sage Logo" class="chat-logo" />
+        <span>Shiva Boys' AI Assistant</span>
+      </div>
       <button id="chat-minimize">_</button>
     </div>
+
     <div id="chat-box">
       <div id="chat-messages">
-        <div class="message bot">Namaste! I'm the AI Assistant for Shiva Boys' Hindu College. How can I help you today?</div>
+        <div class="message bot">
+          Namaste! I'm the AI Assistant for Shiva Boys' Hindu College.<br />
+          How can I help you today?
+        </div>
       </div>
-      <input type="text" id="user-input" placeholder="Ask me anything..." />
-      <button id="send-button">Send</button>
+
+      <div id="chat-input-area">
+        <input type="text" id="user-input" placeholder="Ask me anything..." />
+        <button id="send-button">Send</button>
+      </div>
+    </div>
+
+    <div id="chat-footer">
+      Powered by StefanTheProgrammer
     </div>
   </div>
+
   <script src="widget.js"></script>
 </body>
 </html>
