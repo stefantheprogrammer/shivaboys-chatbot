@@ -67,28 +67,47 @@ const rawDocs = combinedData.map((entry) => {
 
   // POST /api/ask endpoint
   app.post("/api/ask", async (req, res) => {
-    const query = req.body.query;
-    if (!query) {
-      return res.status(400).json({ error: "Missing query" });
+  const query = req.body.query;
+  if (!query) {
+    return res.status(400).json({ error: "Missing query" });
+  }
+
+  // 🔹 Step 1: Normalize and check for quick keyword triggers
+  const normalized = query.trim().toLowerCase();
+
+  const quickTriggers = {
+    "motto": "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'".,
+    "school motto": "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'",
+    "location": "Shiva Boys' Hindu College is located at 35-37 Clarke Road, Penal, Trinidad & Tobago.",
+    "address": "Shiva Boys' Hindu College is located at 35-37 Clarke Road, Penal, Trinidad & Tobago.",
+    "phone": "Shiva Boys' Hindu College's phone number is (868)372-8822.",
+    "contact": "Shiva Boys' Hindu College's phone number is (868)372-8822.",
+    "email": "Shiva Boys' Hindu College's email address is ShivaBoys.sec@fac.edu.tt"
+    
+  };
+
+  if (quickTriggers[normalized]) {
+    return res.json({ answer: quickTriggers[normalized] });
+  }
+
+  try {
+    // 🔹 Step 2: RAG (Vector-based search on your content)
+    const ragResult = await chain.call({ query });
+    const ragAnswer = ragResult.text;
+
+    const irrelevantResponses = [
+      "I'm sorry, but I don't know the answer to that question.",
+      "Sorry, I didn't understand that.",
+      "I don't know the answer",
+    ];
+
+    const isRagRelevant = ragAnswer && !irrelevantResponses.some(msg =>
+      ragAnswer.toLowerCase().includes(msg.toLowerCase())
+    );
+
+    if (isRagRelevant) {
+      return res.json({ answer: ragAnswer });
     }
-
-    try {
-      const ragResult = await chain.call({ query });
-      const ragAnswer = ragResult.text;
-
-      const irrelevantResponses = [
-        "I'm sorry, but I don't know the answer to that question.",
-        "Sorry, I didn't understand that.",
-        "I don't know the answer",
-      ];
-
-      const isRagRelevant = ragAnswer && !irrelevantResponses.some(msg =>
-        ragAnswer.toLowerCase().includes(msg.toLowerCase())
-      );
-
-      if (isRagRelevant) {
-        return res.json({ answer: ragAnswer });
-      }
 
       // Fallback to direct LLM chat
 const systemMessage = {
