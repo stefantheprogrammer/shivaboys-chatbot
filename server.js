@@ -76,7 +76,7 @@ const rawDocs = combinedData.map((entry) => {
   const normalized = query.trim().toLowerCase();
 
   const quickTriggers = {
-    "motto": "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'".,
+    "motto": "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'",
     "school motto": "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'",
     "location": "Shiva Boys' Hindu College is located at 35-37 Clarke Road, Penal, Trinidad & Tobago.",
     "address": "Shiva Boys' Hindu College is located at 35-37 Clarke Road, Penal, Trinidad & Tobago.",
