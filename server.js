@@ -98,65 +98,65 @@ try {
 
   // API endpoint
   // POST /api/ask endpoint
-app.post("/api/ask", async (req, res) => {
-  const query = req.body.query;
-  const history = req.body.history || []; // Short-term conversation memory
+  app.post("/api/ask", async (req, res) => {
+    const query = req.body.query;
+    const history = req.body.history || []; // Short-term conversation memory
 
-  if (!query) {
-    return res.status(400).json({ error: "Missing query" });
-  }
-
-  const normalized = query.trim().toLowerCase();
-
-  // ✅ Greetings
-  const greetings = {
-    "hi": "Hi there! 👋 I’m Sage, the AI assistant for Shiva Boys’ Hindu College. How can I help you today?",
-    "hello": "Hello! 😊 This is Sage from Shiva Boys’ Hindu College. What would you like to know?",
-    "good morning": "Good morning! ☀️ I’m Sage, happy to assist you with anything about Shiva Boys’ Hindu College.",
-    "good afternoon": "Good afternoon! 👋 I’m Sage. Let me know how I can help regarding the school.",
-    "good evening": "Good evening! 👋 I’m Sage. Let me know how I can help regarding the school.",
-  };
-
-  if (greetings[normalized]) {
-    return res.json({ answer: greetings[normalized] });
-  }
-
-  // ✅ Quick keyword triggers
-  const quickTriggers = {
-    "motto": "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'",
-    "school motto": "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'",
-    "location": "Shiva Boys' Hindu College is located at 35-37 Clarke Road, Penal, Trinidad & Tobago.",
-    "address": "Shiva Boys' Hindu College is located at 35-37 Clarke Road, Penal, Trinidad & Tobago.",
-    "phone": "Shiva Boys' Hindu College's phone number is (868)372-8822.",
-    "contact": "Shiva Boys' Hindu College's phone number is (868)372-8822.",
-    "email": "Shiva Boys' Hindu College's email address is ShivaBoys.sec@fac.edu.tt"
-  };
-
-  if (quickTriggers[normalized]) {
-    return res.json({ answer: quickTriggers[normalized] });
-  }
-
-  try {
-    // 🔹 Step 1: RAG search
-    const ragResult = await chain.call({ query });
-    const ragAnswer = ragResult.text;
-
-    const irrelevantResponses = [
-      "i'm sorry", "i don't know", "sorry, i didn't understand"
-    ];
-
-    const isRagRelevant = ragAnswer && !irrelevantResponses.some(msg =>
-      ragAnswer.toLowerCase().includes(msg)
-    );
-
-    if (isRagRelevant) {
-      return res.json({ answer: ragAnswer });
+    if (!query) {
+      return res.status(400).json({ error: "Missing query" });
     }
 
-    // 🔹 Step 2: Groq LLM with conversation history
-    const systemMessage = {
-      role: "system",
-      content: `
+    const normalized = query.trim().toLowerCase();
+
+    // ✅ Greetings
+    const greetings = {
+      "hi": "Hi there! 👋 I’m Sage, the AI assistant for Shiva Boys’ Hindu College. How can I help you today?",
+      "hello": "Hello! 😊 This is Sage from Shiva Boys’ Hindu College. What would you like to know?",
+      "good morning": "Good morning! ☀️ I’m Sage, happy to assist you with anything about Shiva Boys’ Hindu College.",
+      "good afternoon": "Good afternoon! 👋 I’m Sage. Let me know how I can help regarding the school.",
+      "good evening": "Good evening! 👋 I’m Sage. Let me know how I can help regarding the school.",
+    };
+
+    if (greetings[normalized]) {
+      return res.json({ answer: greetings[normalized] });
+    }
+
+    // ✅ Quick keyword triggers
+    const quickTriggers = {
+      "motto": "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'",
+      "school motto": "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'",
+      "location": "Shiva Boys' Hindu College is located at 35-37 Clarke Road, Penal, Trinidad & Tobago.",
+      "address": "Shiva Boys' Hindu College is located at 35-37 Clarke Road, Penal, Trinidad & Tobago.",
+      "phone": "Shiva Boys' Hindu College's phone number is (868)372-8822.",
+      "contact": "Shiva Boys' Hindu College's phone number is (868)372-8822.",
+      "email": "Shiva Boys' Hindu College's email address is ShivaBoys.sec@fac.edu.tt"
+    };
+
+    if (quickTriggers[normalized]) {
+      return res.json({ answer: quickTriggers[normalized] });
+    }
+
+    try {
+      // 🔹 Step 1: RAG search
+      const ragResult = await chain.call({ query });
+      const ragAnswer = ragResult.text;
+
+      const irrelevantResponses = [
+        "i'm sorry", "i don't know", "sorry, i didn't understand"
+      ];
+
+      const isRagRelevant = ragAnswer && !irrelevantResponses.some(msg =>
+        ragAnswer.toLowerCase().includes(msg)
+      );
+
+      if (isRagRelevant) {
+        return res.json({ answer: ragAnswer });
+      }
+
+      // 🔹 Step 2: Groq LLM with conversation history
+      const systemMessage = {
+        role: "system",
+        content: `
 You are Sage — the official AI assistant for **Shiva Boys' Hindu College**, located at **35-37 Clarke Road, Penal, Trinidad & Tobago**.
 
 Your job is to assist students, parents, and teachers with:
@@ -176,45 +176,54 @@ Always introduce yourself as:
 If you're unsure about something, say:
 “I’m not sure about that. Would you like to check the school’s website or ask someone directly?”
 `.trim()
-    };
+      };
 
-    const groqResponse = await chatModel.invoke([
-      systemMessage,
-      ...history, // Previous conversation turns
-      { role: "user", content: query }
-    ]);
+      const groqResponse = await chatModel.invoke([
+        systemMessage,
+        ...history, // Previous conversation turns
+        { role: "user", content: query }
+      ]);
 
-    const groqAnswer = groqResponse.content || "";
+      const groqAnswer = groqResponse.content || "";
 
-    // Weak answer detection → Brave Search fallback
-    const weakIndicators = [
-      "according to my knowledge", "as of", "i believe", "possibly", "i'm not sure", "i don't know"
-    ];
+      // Weak answer detection → Brave Search fallback
+      const weakIndicators = [
+        "according to my knowledge", "as of", "i believe", "possibly", "i'm not sure", "i don't know"
+      ];
 
-    const isGroqWeak = weakIndicators.some(ind =>
-      groqAnswer.toLowerCase().includes(ind)
-    );
+      const isGroqWeak = weakIndicators.some(ind =>
+        groqAnswer.toLowerCase().includes(ind)
+      );
 
-    if (!isGroqWeak) {
-      return res.json({ answer: groqAnswer });
+      if (!isGroqWeak) {
+        return res.json({ answer: groqAnswer });
+      }
+
+      // 🔹 Step 3: Brave Search fallback
+      try {
+        const braveResults = await performWebSearch(query);
+        return res.json({
+          answer: `I couldn't answer confidently, so I searched the web for you:\n\n${braveResults}`
+        });
+      } catch (braveError) {
+        console.error("Brave Search failed:", braveError.message);
+        return res.json({
+          answer: "I'm not sure about that, and I couldn't fetch live search results at the moment. Please try again later."
+        });
+      }
+
+    } catch (error) {
+      console.error("Error in /api/ask:", error);
+      res.status(500).json({ error: "Server error during question handling." });
     }
+  });
 
-    // 🔹 Step 3: Brave Search fallback
-    try {
-      const braveResults = await performWebSearch(query);
-      return res.json({
-        answer: `I couldn't answer confidently, so I searched the web for you:\n\n${braveResults}`
-      });
-    } catch (braveError) {
-      console.error("Brave Search failed:", braveError.message);
-      return res.json({
-        answer: "I'm not sure about that, and I couldn't fetch live search results at the moment. Please try again later."
-      });
-    }
+  // Start the server
+  app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+  });
 
-  } catch (error) {
-    console.error("Error in /api/ask:", error);
-    res.status(500).json({ error: "Server error during question handling." });
-  }
-});
-
+} catch (error) {
+  console.error("Failed to initialize server:", error);
+  process.exit(1);
+}
