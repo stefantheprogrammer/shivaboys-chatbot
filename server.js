@@ -111,6 +111,23 @@ async function initialize() {
       if (quickTriggers[normalized]) return res.json({ answer: quickTriggers[normalized] });
 
       try {
+        // Force fallback for "prime minister" queries to get fresh info
+        if (normalized.includes("prime minister")) {
+          console.log("Force fallback: performing Brave Search for prime minister query.");
+          try {
+            const braveResults = await performWebSearch(query);
+            console.log("Brave Search results:", braveResults);
+            return res.json({
+              answer: `Here's what I found online about the prime minister:\n\n${braveResults}`
+            });
+          } catch (braveError) {
+            console.error("Brave Search failed:", braveError);
+            return res.json({
+              answer: "I'm not sure about that, and I couldn't fetch live search results at the moment. Please try again later."
+            });
+          }
+        }
+
         // Use retrieval-augmented generation first
         const ragResult = await chain.call({ query });
         const ragAnswer = ragResult.text;
@@ -125,7 +142,10 @@ async function initialize() {
           ragAnswer.toLowerCase().includes(msg.toLowerCase())
         );
 
-        if (isRagRelevant) return res.json({ answer: ragAnswer });
+        if (isRagRelevant) {
+          console.log("RAG answered confidently:", ragAnswer);
+          return res.json({ answer: ragAnswer });
+        }
 
         // Setup system message for Groq
         const systemMessage = {
@@ -163,8 +183,9 @@ Always stay conversational and clear. You are not a search engine or a robot —
         ]);
 
         const groqAnswer = aiResponse.content || "";
+        console.log("Groq answer:", groqAnswer);
 
-        // Check for weak/confident phrases in Groq's response
+        // Expanded weak/confident phrases detection
         const weakIndicators = [
           "according to my knowledge",
           "as of",
@@ -175,12 +196,17 @@ Always stay conversational and clear. You are not a search engine or a robot —
           "i'm unsure",
           "i don't have that information",
           "i don't know",
+          "according to the context",
+          "based on the information",
+          "it appears that",
           "as of my knowledge cutoff"
         ];
 
         const isGroqWeak = weakIndicators.some(indicator =>
           groqAnswer.toLowerCase().includes(indicator)
         );
+
+        console.log("Is Groq answer weak (fallback needed)?", isGroqWeak);
 
         if (!isGroqWeak) {
           // Groq gave a confident answer
@@ -189,12 +215,14 @@ Always stay conversational and clear. You are not a search engine or a robot —
 
         // 🔍 Perform Brave Search as fallback
         try {
+          console.log("Triggering Brave Search fallback for query:", query);
           const braveResults = await performWebSearch(query);
+          console.log("Brave Search results:", braveResults);
           return res.json({
             answer: `I couldn't answer confidently, so I searched the web for you:\n\n${braveResults}`
           });
         } catch (braveError) {
-          console.error("Brave Search failed:", braveError.message);
+          console.error("Brave Search failed:", braveError);
           return res.json({
             answer: "I'm not sure about that, and I couldn't fetch live search results at the moment. Please try again later."
           });
