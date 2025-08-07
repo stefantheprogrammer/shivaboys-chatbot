@@ -89,7 +89,7 @@ const normalized = query.trim().toLowerCase();
     return res.json({ answer: "I’m Sage, the AI assistant for Shiva Boys’ Hindu College in Trinidad and Tobago." });
   }
   // 🔹 Step 1: Normalize and check for quick keyword triggers
-  const normalized = query.trim().toLowerCase();
+  
 
   const quickTriggers = {
     "motto": "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'",
