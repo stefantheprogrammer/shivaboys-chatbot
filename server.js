@@ -10,8 +10,6 @@ import { RetrievalQAChain } from "langchain/chains";
 import { Document } from "@langchain/core/documents";
 import * as fs from "fs";
 import fetch from "node-fetch";
-import fs from "fs";
-import path from "path";
 
 const logFilePath = path.join(__dirname, "chat_logs.txt");
 
