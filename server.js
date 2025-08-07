@@ -174,7 +174,8 @@ Always stay conversational and clear. You are not a search engine or a robot —
           "i'm not sure",
           "i'm unsure",
           "i don't have that information",
-          "i don't know"
+          "i don't know",
+          "as of my knowledge cutoff"
         ];
 
         const isGroqWeak = weakIndicators.some(indicator =>
