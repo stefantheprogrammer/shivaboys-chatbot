@@ -10,6 +10,26 @@ import { RetrievalQAChain } from "langchain/chains";
 import { Document } from "@langchain/core/documents";
 import * as fs from "fs";
 import fetch from "node-fetch";
+import fs from "fs";
+import path from "path";
+
+const logFilePath = path.join(__dirname, "chat_logs.txt");
+
+function logChat(sessionId, userQuery, assistantReply, error = null) {
+  const timestamp = new Date().toISOString();
+  const logEntry = {
+    timestamp,
+    sessionId: sessionId || "unknown",
+    userQuery,
+    assistantReply,
+    error: error ? error.toString() : null,
+  };
+  try {
+    fs.appendFileSync(logFilePath, JSON.stringify(logEntry) + "\n");
+  } catch (err) {
+    console.error("Failed to write chat log:", err);
+  }
+}
 
 // Get __dirname in ES Modules
 const __filename = fileURLToPath(import.meta.url);
@@ -100,7 +120,8 @@ try {
   // POST /api/ask endpoint
   app.post("/api/ask", async (req, res) => {
   const query = req.body.query;
-  const history = req.body.history || []; // Short-term conversation memory
+  const history = req.body.history || [];
+  const sessionId = req.body.sessionId || null;
 
   if (!query) {
     return res.status(400).json({ error: "Missing query" });
@@ -108,7 +129,7 @@ try {
 
   const normalized = query.trim().toLowerCase();
 
-  // ✅ Greetings
+  // Greetings
   const greetings = {
     "hi": "Hi there! 👋 I’m Sage, the AI assistant for Shiva Boys’ Hindu College. How can I help you today?",
     "hello": "Hello! 😊 This is Sage from Shiva Boys’ Hindu College. What would you like to know?",
@@ -118,10 +139,11 @@ try {
   };
 
   if (greetings[normalized]) {
+    logChat(sessionId, query, greetings[normalized]);
     return res.json({ answer: greetings[normalized] });
   }
 
-  // ✅ Quick keyword triggers
+  // Quick keyword triggers
   const quickTriggers = {
     "motto": "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'",
     "school motto": "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'",
@@ -133,10 +155,11 @@ try {
   };
 
   if (quickTriggers[normalized]) {
+    logChat(sessionId, query, quickTriggers[normalized]);
     return res.json({ answer: quickTriggers[normalized] });
   }
 
-  // --- Controlled Personal Facts ---
+  // Controlled Personal Facts
   const personalFacts = {
     principal: {
       keywords: ["principal", "headmaster", "school principal"],
@@ -144,7 +167,6 @@ try {
       description: "the Principal of Shiva Boys' Hindu College",
       comment: "Yes, his name is quite unique and lovely."
     },
-    // Add more as needed
   };
 
   function checkPersonalFacts(q) {
@@ -158,7 +180,7 @@ try {
     return null;
   }
 
-  // Step 1: Check personal facts first
+  // Step 1: Check personal facts
   const factResponse = checkPersonalFacts(query);
   if (factResponse) {
     try {
@@ -172,15 +194,16 @@ try {
       };
 
       const creativeReply = await chatModel.invoke([systemMsg, userMsg]);
+      logChat(sessionId, query, creativeReply.content);
       return res.json({ answer: creativeReply.content });
     } catch (err) {
       console.error("Error generating creative reply:", err);
-      // Fallback to plain fact response if LLM fails
+      logChat(sessionId, query, factResponse, err);
       return res.json({ answer: factResponse });
     }
   }
 
-  // Step 2: Existing RAG + LLM chain logic for everything else
+  // Step 2: RAG + LLM chain
   try {
     const ragResult = await chain.call({ query });
     const ragAnswer = ragResult.text;
@@ -194,6 +217,7 @@ try {
     );
 
     if (isRagRelevant) {
+      logChat(sessionId, query, ragAnswer);
       return res.json({ answer: ragAnswer });
     }
 
@@ -218,7 +242,7 @@ Always introduce yourself as:
 
 If you're unsure about something, say:
 “I’m not sure about that. Would you like to check the school’s website or ask someone directly?”
-`.trim()
+      `.trim()
     };
 
     const groqResponse = await chatModel.invoke([
@@ -238,27 +262,30 @@ If you're unsure about something, say:
     );
 
     if (!isGroqWeak) {
+      logChat(sessionId, query, groqAnswer);
       return res.json({ answer: groqAnswer });
     }
 
     // Brave Search fallback
     try {
       const braveResults = await performWebSearch(query);
-      return res.json({
-        answer: `I couldn't answer confidently, so I searched the web for you:\n\n${braveResults}`
-      });
+      const fallbackAnswer = `I couldn't answer confidently, so I searched the web for you:\n\n${braveResults}`;
+      logChat(sessionId, query, fallbackAnswer);
+      return res.json({ answer: fallbackAnswer });
     } catch (braveError) {
       console.error("Brave Search failed:", braveError.message);
-      return res.json({
-        answer: "I'm not sure about that, and I couldn't fetch live search results at the moment. Please try again later."
-      });
+      const fallbackFailAnswer = "I'm not sure about that, and I couldn't fetch live search results at the moment. Please try again later.";
+      logChat(sessionId, query, fallbackFailAnswer, braveError);
+      return res.json({ answer: fallbackFailAnswer });
     }
 
   } catch (error) {
     console.error("Error in /api/ask:", error);
+    logChat(sessionId, query, null, error);
     res.status(500).json({ error: "Server error during question handling." });
   }
 });
+
 } catch (err) {
   console.error("Error during setup:", err);
   process.exit(1);

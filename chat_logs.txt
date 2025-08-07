@@ -1,0 +1,16 @@
+import fs from "fs";
+import path from "path";
+
+const logFilePath = path.join(__dirname, "chat_logs.txt");
+
+function logChat(sessionId, userQuery, assistantReply, error = null) {
+  const timestamp = new Date().toISOString();
+  const logEntry = {
+    timestamp,
+    sessionId: sessionId || "unknown",
+    userQuery,
+    assistantReply,
+    error: error ? error.toString() : null,
+  };
+  fs.appendFileSync(logFilePath, JSON.stringify(logEntry) + "\n");
+}
