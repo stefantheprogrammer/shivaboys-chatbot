@@ -259,3 +259,11 @@ If you're unsure about something, say:
     res.status(500).json({ error: "Server error during question handling." });
   }
 });
+} catch (err) {
+  console.error("Error during setup:", err);
+  process.exit(1);
+}
+
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
+});
