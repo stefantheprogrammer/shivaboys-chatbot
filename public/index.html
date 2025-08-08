@@ -141,6 +141,7 @@
 const chatInput = document.getElementById("chat-input");
 const sendButton = document.getElementById("send-button");
 const chatMessages = document.getElementById("chat-messages");
+const form = document.getElementById("chat-input-area");
 
 function appendMessage(role, text) {
   const msg = document.createElement("div");
@@ -177,11 +178,11 @@ async function sendMessage() {
   }
 }
 
-sendButton.onclick = sendMessage;
-chatInput.addEventListener("keypress", e => {
-  if (e.key === "Enter") sendMessage();
+form.addEventListener("submit", async (event) => {
+  event.preventDefault(); // prevent native form submit & validation popup
+  await sendMessage();
 });
-</script>
+  </script>
 
 </body>
 </html>
