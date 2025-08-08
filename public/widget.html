@@ -34,12 +34,14 @@
       gap: 8px;
     }
     .message {
-      max-width: 80%;
-      padding: 10px 14px;
-      border-radius: 15px;
-      word-wrap: break-word;
-      white-space: pre-wrap;
-    }
+  margin: 4px 0; /* reduce from 8px */
+  padding: 8px 12px; /* slightly reduce padding */
+  border-radius: 15px;
+  max-width: 80%;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
     .message.user {
       background-color: #006ddabe;
       color: white;
@@ -120,10 +122,10 @@
   <div id="chat-container">
     <div id="messages">
       <div class="message bot">
-        Hi! Welcome to Shiva Boys' Hindu College! <br>
-        I’m Sage, your AI Assistant. <br>
-        How can I assist you today?
-      </div>
+  <p>Hi! Welcome to Shiva Boys' Hindu College!</p>
+  <p>I’m Sage, your AI Assistant.</p>
+  <p>How can I assist you today?</p>
+</div>
     </div>
 
     <div id="input-area">
@@ -204,6 +206,13 @@
       const data = await res.json();
       return data.answer || "Sorry, I couldn't understand that.";
     }
+    inputText.addEventListener('keypress', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();  // Prevent newline in input
+    sendBtn.click();     // Trigger send button click
+  }
+});
+
   </script>
 </body>
 </html>
