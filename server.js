@@ -8,15 +8,17 @@ import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { RetrievalQAChain } from "langchain/chains";
 import { Document } from "@langchain/core/documents";
-import * as fs from "fs";
+import fs from "fs";
 import fetch from "node-fetch";
 
 // Get __dirname in ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Log file path
 const logFilePath = path.join(__dirname, "chat_logs.txt");
 
+// Logging function
 function logChat(sessionId, userQuery, assistantReply, error = null) {
   const timestamp = new Date().toISOString();
   const logEntry = {
@@ -31,6 +33,8 @@ function logChat(sessionId, userQuery, assistantReply, error = null) {
   } catch (err) {
     console.error("Failed to write chat log:", err);
   }
+  // Also log to console for Render logs
+  console.log("Chat log:", JSON.stringify(logEntry));
 }
 
 const app = express();
@@ -53,7 +57,7 @@ function addToHistory(sessionId, role, content) {
   }
 }
 
-(async () => {
+async function main() {
   try {
     // Load JSON files
     const websiteData = JSON.parse(fs.readFileSync("data/website_data.json", "utf-8"));
@@ -90,7 +94,7 @@ function addToHistory(sessionId, role, content) {
     // Setup RAG chain
     const chain = RetrievalQAChain.fromLLM(chatModel, vectorStore.asRetriever());
 
-    // 🔍 Brave Search
+    // Brave Search helper
     async function performWebSearch(query) {
       const response = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}`, {
         method: "GET",
@@ -115,7 +119,7 @@ function addToHistory(sessionId, role, content) {
       ).join("\n\n");
     }
 
-    // POST /api/ask endpoint
+    // API endpoint
     app.post("/api/ask", async (req, res) => {
       const query = req.body.query;
       const history = req.body.history || [];
@@ -292,4 +296,6 @@ If you're unsure about something, say:
     console.error("Error during setup:", err);
     process.exit(1);
   }
-})();
+}
+
+main();
