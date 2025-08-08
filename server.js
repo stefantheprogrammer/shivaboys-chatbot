@@ -266,19 +266,22 @@ If you're unsure about something, say:
         const groqAnswer = groqResponse.content || "";
 
         const weakIndicators = [
-          "according to my knowledge", "as of", "i believe", "possibly", "i'm not sure", "i don't know"
-        ];
+  "according to my knowledge", "as of", "i believe", "possibly", "i'm not sure", "i don't know"
+];
+const negativePhrases = [
+  "not familiar", "don't know", "no information", "can't help with that"
+];
 
-        const isGroqWeak = weakIndicators.some(ind =>
-          groqAnswer.toLowerCase().includes(ind)
-        );
+const isGroqWeak = weakIndicators.some(ind => groqAnswer.toLowerCase().includes(ind)) ||
+                   negativePhrases.some(phrase => groqAnswer.toLowerCase().includes(phrase));
 
-        if (!isGroqWeak) {
-          logChat(sessionId, query, groqAnswer);
-          addToHistory(sessionId, "user", query);
-          addToHistory(sessionId, "assistant", groqAnswer);
-          return res.json({ answer: groqAnswer, sessionId });
-        }
+if (!isGroqWeak) {
+  logChat(sessionId, query, groqAnswer);
+  return res.json({ answer: groqAnswer });
+}
+
+// Trigger Brave Search fallback here...
+
 
         // Brave Search fallback
         try {
