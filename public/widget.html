@@ -35,9 +35,10 @@
   }
   .message {
     white-space: pre-wrap; /* preserve line breaks */
-    line-height: 1.25;      /* tighter overall line height */
-    margin-bottom: 8px;     /* space between separate messages */
+    line-height: 1.2;       /* tighter spacing */
+    margin-bottom: 8px;     /* space between messages */
     padding: 8px 12px;
+    border-radius: 12px;    /* rounded corners restored */
   }
   .message.user {
     background-color: #006ddabe;
@@ -51,6 +52,7 @@
     align-self: flex-start;
     text-align: left;
   }
+
   /* Markdown styles */
   .message strong {
     font-weight: bold;
@@ -60,10 +62,10 @@
   }
   .message ul, .message ol {
     padding-left: 20px;
-    margin: 6px 0;
+    margin: 8px 0;
   }
   .message li {
-    margin-bottom: 3px;
+    margin-bottom: 4px;
   }
   .message code {
     background-color: #eee;
@@ -77,11 +79,10 @@
     border-radius: 6px;
     overflow-x: auto;
     font-family: monospace;
-    margin: 6px 0;
+    margin: 8px 0;
   }
-  /* Tighter paragraph spacing */
   .message p {
-    margin: 0 0 2px 0; /* 2px bottom margin */
+    margin: 0 0 4px 0; /* less gap between paragraphs */
   }
   .message p:last-child {
     margin-bottom: 0;
