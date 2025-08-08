@@ -1,3 +1,6 @@
+// Make sure you include marked.js in your HTML:
+// <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
 const messagesEl = document.getElementById('messages');
 const inputText = document.getElementById('input-text');
 const sendBtn = document.getElementById('send-btn');
@@ -28,7 +31,10 @@ sendBtn.addEventListener('click', async () => {
 function addMessage(text, sender, isTemporary = false) {
   const msg = document.createElement('div');
   msg.classList.add('message', sender);
-  msg.textContent = text;
+
+  // Parse markdown text to HTML using marked
+  msg.innerHTML = marked.parse(text);
+
   if (isTemporary) {
     msg.dataset.temp = 'true';
   }
@@ -39,7 +45,7 @@ function addMessage(text, sender, isTemporary = false) {
 function updateLastBotMessage(text) {
   const lastMsg = messagesEl.querySelector('.message.bot[data-temp="true"]');
   if (lastMsg) {
-    lastMsg.textContent = text;
+    lastMsg.innerHTML = marked.parse(text);
     lastMsg.removeAttribute('data-temp');
   }
   messagesEl.scrollTop = messagesEl.scrollHeight;
