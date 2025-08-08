@@ -1,189 +1,155 @@
-<!DOCTYPE html>
+widget.html: <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Sage.Ai Chatbot</title>
-
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Chat Widget</title>
   <style>
   * {
-    box-sizing: border-box;
-  }
-  html, body {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-    font-family: Arial, sans-serif;
-    overflow: hidden;
-    background: #f5f5f5;
-  }
-  #chat-container {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    width: 100%;
-    background: white;
-    padding: 0;
-    margin: 0;
-  }
-  #messages {
-    flex: 1;
-    overflow-y: auto;
-    padding: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .message {
-    white-space: pre-wrap; /* preserve line breaks */
-    line-height: 1.2;       /* tighter spacing */
-    margin-bottom: 8px;     /* space between messages */
-    padding: 8px 12px;
-    border-radius: 12px;    /* rounded corners restored */
-  }
-  .message.user {
-    background-color: #006ddabe;
-    color: white;
-    align-self: flex-end;
-    text-align: right;
-  }
-  .message.bot {
-    background-color: #e0e0e0;
-    color: #000;
-    align-self: flex-start;
-    text-align: left;
-  }
+  box-sizing: border-box;
+}
 
-  /* Markdown styles */
-  .message strong {
-    font-weight: bold;
-  }
-  .message em {
-    font-style: italic;
-  }
-  .message ul, .message ol {
-    padding-left: 20px;
-    margin: 8px 0;
-  }
-  .message li {
-    margin-bottom: 4px;
-  }
-  .message code {
-    background-color: #eee;
-    padding: 2px 4px;
-    border-radius: 3px;
-    font-family: monospace;
-  }
-  .message pre {
-    background-color: #eee;
-    padding: 8px;
-    border-radius: 6px;
-    overflow-x: auto;
-    font-family: monospace;
-    margin: 8px 0;
-  }
-  .message p {
-    margin: 0 0 4px 0; /* less gap between paragraphs */
-  }
-  .message p:last-child {
-    margin-bottom: 0;
-  }
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: Arial, sans-serif;
+  overflow: hidden;
+}
 
-  #input-area {
-    display: flex;
-    padding: 10px;
-    border-top: 1px solid #ccc;
-    background: #fafafa;
-  }
-  #input-text {
-    flex: 1;
-    padding: 8px;
-    font-size: 14px;
-    border: 1px solid #ccc;
-    border-radius: 6px;
-  }
-  #send-btn {
-    padding: 8px 16px;
-    margin-left: 8px;
-    background: #003366;
-    color: white;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-  }
-  #send-btn:disabled {
-    background: #999;
-    cursor: not-allowed;
-  }
-  #footer {
-    padding: 6px;
-    text-align: center;
-    font-size: 12px;
-    color: #666;
-    background: #f0f0f0;
-  }
+#chatbox {
+  padding: 0;
+  margin: 0;
+}
+
+#chat-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  background: white;
+  padding: 0; /* ✅ Remove any default padding */
+  margin: 0;  /* ✅ Prevent any shifting */
+}
+
+.message {
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-radius: 15px;
+  max-width: 80%;
+  word-wrap: break-word;
+}
+
+.message.user {
+  background-color: #006ddabe;
+  color: white;
+  align-self: flex-end;
+  text-align: right;
+}
+
+.message.bot {
+  background-color: #e0e0e0;
+  color: #000;
+  align-self: flex-start;
+  text-align: left;
+}
+
+#chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+#chat-input-area {
+  display: flex;
+  padding: 10px;
+  border-top: 1px solid #ccc;
+  background: #f9f9f9;
+}
+
+#chat-input {
+  flex: 1;
+  padding: 8px;
+  font-size: 14px;
+}
+
+#send-button {
+  padding: 8px 12px;
+  margin-left: 8px;
+  background: #003366;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+#footer {
+  padding: 5px;
+  text-align: center;
+  font-size: 12px;
+  color: #666;
+  background: #f0f0f0;
+}
 </style>
 
 </head>
 <body>
   <div id="chat-container">
-    <div id="messages"></div>
-    <div id="input-area">
-      <input type="text" id="input-text" placeholder="Type a message..." />
-      <button id="send-btn">Send</button>
+    <div id="chat-messages">
+      <div class="message bot">Hi! Welcome to Shiva Boys' Hindu College! <br>I’m Sage, your AI Assistant. <br>How can I assist you today?</div>
     </div>
+
+    <div id="chat-input-area">
+      <input type="text" id="chat-input" placeholder="Type your message...">
+      <button id="send-button">Send</button>
+    </div>
+
     <div id="footer">Powered by StefanTheProgrammer</div>
   </div>
 
   <script>
-    const messagesDiv = document.getElementById("messages");
-    const inputText = document.getElementById("input-text");
-    const sendBtn = document.getElementById("send-btn");
+    const chatInput = document.getElementById("chat-input");
+    const sendButton = document.getElementById("send-button");
+    const chatMessages = document.getElementById("chat-messages");
 
-    // Session ID
-    const sessionId = sessionStorage.getItem("sageSessionId") || crypto.randomUUID();
-    sessionStorage.setItem("sageSessionId", sessionId);
+    function appendMessage(role, text) {
+  const msg = document.createElement("div");
+  msg.className = `message ${role}`;
 
-    function appendMessage(content, sender) {
-      const msg = document.createElement("div");
-      msg.classList.add("message", sender);
-      msg.innerHTML = content;
-      messagesDiv.appendChild(msg);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }
+  // Replace newlines with <br> for line breaks
+  const formatted = text
+    .replace(/(?:\r\n|\r|\n)/g, "<br>")
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") // Optional: bold markdown
+    .replace(/`(.*?)`/g, "<code>$1</code>");           // Optional: inline code
 
-    // Initial greeting without extra space
-    appendMessage(
-      `<p>Hi! Welcome to Shiva Boys' Hindu College!</p>
-       <p>I’m Sage, your AI Assistant.</p>
-       <p>How can I assist you today?</p>`,
-      "bot"
-    );
+  msg.innerHTML = formatted;
+  chatMessages.appendChild(msg);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
 
-    async function sendMessage() {
-      const text = inputText.value.trim();
-      if (!text) return;
-      appendMessage(text, "user");
-      inputText.value = "";
-      sendBtn.disabled = true;
+
+    sendButton.onclick = async () => {
+      const query = chatInput.value.trim();
+      if (!query) return;
+      appendMessage("user", query);
+      chatInput.value = "";
 
       try {
-        const res = await fetch("https://shivaboys-chatbot.onrender.com/chat", {
+        const res = await fetch("/api/ask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: text, sessionId })
+          body: JSON.stringify({ query })
         });
         const data = await res.json();
-        appendMessage(data.reply, "bot");
+        appendMessage("bot", data.answer || "Sorry, I couldn't understand that.");
       } catch (err) {
-        appendMessage("Sorry, there was an error connecting to the server.", "bot");
-      } finally {
-        sendBtn.disabled = false;
+        appendMessage("bot", "Error contacting server.");
       }
-    }
+    };
 
-    sendBtn.addEventListener("click", sendMessage);
-    inputText.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") sendMessage();
+    chatInput.addEventListener("keypress", function (e) {
+      if (e.key === "Enter") sendButton.click();
     });
   </script>
 </body>
