@@ -5,22 +5,28 @@
 // Store chat history for the current session
 let conversationHistory = [];
 
+// Get chat messages container once
+const chatMessages = document.getElementById("chat-messages");
+
 // Function to append messages to the chat UI
 function appendMessage(role, text) {
   const msg = document.createElement("div");
   msg.className = `message ${role}`;
 
-  // Replace multiple line breaks with just one
-  let formatted = text
-    .replace(/(?:\r\n|\r|\n){2,}/g, "<br>") // multiple line breaks to one <br>
-    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-    .replace(/`(.*?)`/g, "<code>$1</code>");
-
-  // Trim leading/trailing whitespace
-  formatted = formatted.trim();
+  // Normalize newlines:
+  // 1. Trim leading/trailing whitespace
+  // 2. Replace multiple consecutive newlines with one
+  // 3. Replace single newlines with <br> for line breaks
+  let formatted = text.trim()
+    .replace(/(\r\n|\r|\n){2,}/g, "<br>")   // multiple newlines to one <br>
+    .replace(/(\r\n|\r|\n)/g, "<br>")        // single newline to <br>
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") // bold markdown
+    .replace(/`(.*?)`/g, "<code>$1</code>");          // inline code
 
   msg.innerHTML = formatted;
   chatMessages.appendChild(msg);
+
+  // Scroll to bottom after adding message
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
@@ -47,7 +53,7 @@ async function sendMessage() {
       },
       body: JSON.stringify({
         query,
-        history: conversationHistory // Send history to the backend
+        history: conversationHistory, // Send history to the backend
       }),
     });
 
@@ -60,13 +66,16 @@ async function sendMessage() {
     // Add Sage's reply to conversation history
     conversationHistory.push({ role: "assistant", content: answer });
 
-    // Keep history short-term (last 10 exchanges)
+    // Keep history short-term (last 20 messages total)
     if (conversationHistory.length > 20) {
       conversationHistory = conversationHistory.slice(-20);
     }
   } catch (error) {
     console.error("Error sending message:", error);
-    appendMessage("bot", "⚠️ There was a problem connecting to Sage. Please try again.");
+    appendMessage(
+      "bot",
+      "⚠️ There was a problem connecting to Sage. Please try again."
+    );
   }
 }
 
