@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <title>Sage.Ai Chatbot</title>
-<style>
+
+  <style>
   * {
     box-sizing: border-box;
   }
@@ -33,9 +34,9 @@
     gap: 8px;
   }
   .message {
-    white-space: pre-wrap;
-    line-height: 1.3;
-    margin: 0; /* remove top/bottom gaps */
+    white-space: pre-wrap; /* preserve line breaks */
+    line-height: 1.25;      /* tighter overall line height */
+    margin-bottom: 8px;     /* space between separate messages */
     padding: 8px 12px;
   }
   .message.user {
@@ -59,10 +60,10 @@
   }
   .message ul, .message ol {
     padding-left: 20px;
-    margin: 8px 0;
+    margin: 6px 0;
   }
   .message li {
-    margin-bottom: 4px;
+    margin-bottom: 3px;
   }
   .message code {
     background-color: #eee;
@@ -76,17 +77,16 @@
     border-radius: 6px;
     overflow-x: auto;
     font-family: monospace;
-    margin: 8px 0;
+    margin: 6px 0;
   }
+  /* Tighter paragraph spacing */
   .message p {
-    margin: 0 0 6px 0; /* bottom margin 6px only */
-  }
-  .message p:first-child {
-    margin-top: 0; /* no top gap */
+    margin: 0 0 2px 0; /* 2px bottom margin */
   }
   .message p:last-child {
     margin-bottom: 0;
   }
+
   #input-area {
     display: flex;
     padding: 10px;
@@ -121,6 +121,7 @@
     background: #f0f0f0;
   }
 </style>
+
 </head>
 <body>
   <div id="chat-container">
