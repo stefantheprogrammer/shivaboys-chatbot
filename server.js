@@ -84,7 +84,23 @@ const clarificationMap = {
 // Tracks if user already clarified to avoid repetitive asking
 const clarificationAsked = {};
 
-// Load data and setup chain asynchronously at startup
+// Examples of answers that mark clarification as answered
+function isClarificationAnswered(originalClarificationKey, userQuery) {
+  const clarificationsAnsweredExamples = {
+    fees: ["exam fees", "tuition fees", "registration fees", "exam", "tuition", "registration"],
+    "subject combinations": ["csec", "cape", "general subjects", "csec subjects", "cape subjects"],
+    timetable: ["daily timetable", "exam timetable", "school events", "exam schedule"],
+    // Add more as needed
+  };
+
+  const normalizedQuery = userQuery.toLowerCase();
+  if (!clarificationsAnsweredExamples[originalClarificationKey]) return false;
+
+  return clarificationsAnsweredExamples[originalClarificationKey].some((example) =>
+    normalizedQuery.includes(example)
+  );
+}
+
 async function initialize() {
   try {
     const websiteData = JSON.parse(fs.readFileSync("data/website_data.json", "utf-8"));
@@ -132,7 +148,6 @@ async function initialize() {
         .join("\n\n");
     }
 
-    // Main /api/ask endpoint
     app.post("/api/ask", async (req, res) => {
       const queryRaw = req.body.query;
       const history = req.body.history || [];
@@ -185,10 +200,22 @@ async function initialize() {
 
       // Clarification check for vague queries
       if (clarificationMap[normalized]) {
-        // Check if already clarified in this session
         if (!clarificationAsked[sessionId]) clarificationAsked[sessionId] = new Set();
 
-        if (!clarificationAsked[sessionId].has(normalized)) {
+        if (clarificationAsked[sessionId].has(normalized)) {
+          // Check if user answered the clarification question
+          if (isClarificationAnswered(normalized, queryRaw)) {
+            // Mark clarification as answered and continue processing
+            clarificationAsked[sessionId].delete(normalized);
+          } else {
+            // Ask clarification again
+            const clarificationReply = clarificationMap[normalized];
+            addToHistory(sessionId, "bot", clarificationReply);
+            logChat(sessionId, queryRaw, clarificationReply);
+            return res.json({ answer: clarificationReply, sessionId });
+          }
+        } else {
+          // First time ask clarification
           const clarificationReply = clarificationMap[normalized];
           clarificationAsked[sessionId].add(normalized);
           addToHistory(sessionId, "bot", clarificationReply);

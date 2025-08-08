@@ -1,9 +1,8 @@
-// Make sure you include marked.js in your HTML:
-// <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-
 const messagesEl = document.getElementById('messages');
 const inputText = document.getElementById('input-text');
 const sendBtn = document.getElementById('send-btn');
+
+let sessionId = localStorage.getItem('chatSessionId') || null;
 
 inputText.addEventListener('input', () => {
   sendBtn.disabled = inputText.value.trim() === '';
@@ -32,12 +31,18 @@ function addMessage(text, sender, isTemporary = false) {
   const msg = document.createElement('div');
   msg.classList.add('message', sender);
 
-  // Parse markdown text to HTML using marked
-  msg.innerHTML = marked.parse(text);
+  // Markdown-ish simple formatting (bold, line breaks)
+  const formatted = text
+    .replace(/(?:\r\n|\r|\n)/g, "<br>")
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`(.*?)`/g, "<code>$1</code>");
+
+  msg.innerHTML = formatted;
 
   if (isTemporary) {
     msg.dataset.temp = 'true';
   }
+
   messagesEl.appendChild(msg);
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
@@ -45,22 +50,40 @@ function addMessage(text, sender, isTemporary = false) {
 function updateLastBotMessage(text) {
   const lastMsg = messagesEl.querySelector('.message.bot[data-temp="true"]');
   if (lastMsg) {
-    lastMsg.innerHTML = marked.parse(text);
+    // Update with formatted markdown
+    const formatted = text
+      .replace(/(?:\r\n|\r|\n)/g, "<br>")
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/`(.*?)`/g, "<code>$1</code>");
+    lastMsg.innerHTML = formatted;
     lastMsg.removeAttribute('data-temp');
   }
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
 async function sendMessageToBackend(text) {
+  const payload = { message: text };
+  if (sessionId) {
+    payload.sessionId = sessionId;
+  }
+
   const res = await fetch('/api/chat', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: text }),
+    body: JSON.stringify(payload),
   });
 
   if (!res.ok) {
     throw new Error('Network response was not ok');
   }
+
   const data = await res.json();
+
+  // Save sessionId if received from backend
+  if (data.sessionId && data.sessionId !== sessionId) {
+    sessionId = data.sessionId;
+    localStorage.setItem('chatSessionId', sessionId);
+  }
+
   return data.reply;
 }
