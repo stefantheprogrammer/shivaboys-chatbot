@@ -2,23 +2,31 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
+import crypto from "crypto";
+
 import { ChatGroq } from "@langchain/groq";
 import { HuggingFaceInferenceEmbeddings } from "@langchain/community/embeddings/hf";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { RetrievalQAChain } from "langchain/chains";
 import { Document } from "@langchain/core/documents";
-import fs from "fs";
+
+import * as fs from "fs";
 import fetch from "node-fetch";
 
 // Get __dirname in ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Log file path
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
+
 const logFilePath = path.join(__dirname, "chat_logs.txt");
 
-// Logging function
 function logChat(sessionId, userQuery, assistantReply, error = null) {
   const timestamp = new Date().toISOString();
   const logEntry = {
@@ -33,16 +41,9 @@ function logChat(sessionId, userQuery, assistantReply, error = null) {
   } catch (err) {
     console.error("Failed to write chat log:", err);
   }
-  // Also log to console for Render logs
+  // Also log to console for server logs
   console.log("Chat log:", JSON.stringify(logEntry));
 }
-
-const app = express();
-const port = process.env.PORT || 3000;
-
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
 
 // 🧠 Short-Term Conversation Memory
 const conversationHistory = {};
@@ -57,7 +58,7 @@ function addToHistory(sessionId, role, content) {
   }
 }
 
-async function main() {
+async function setup() {
   try {
     // Load JSON files
     const websiteData = JSON.parse(fs.readFileSync("data/website_data.json", "utf-8"));
@@ -94,14 +95,14 @@ async function main() {
     // Setup RAG chain
     const chain = RetrievalQAChain.fromLLM(chatModel, vectorStore.asRetriever());
 
-    // Brave Search helper
+    // Brave Search function
     async function performWebSearch(query) {
       const response = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}`, {
         method: "GET",
         headers: {
           "Accept": "application/json",
-          "X-Subscription-Token": process.env.BRAVE_API_KEY
-        }
+          "X-Subscription-Token": process.env.BRAVE_API_KEY,
+        },
       });
 
       if (!response.ok) {
@@ -119,11 +120,16 @@ async function main() {
       ).join("\n\n");
     }
 
-    // API endpoint
+    // POST /api/ask endpoint
     app.post("/api/ask", async (req, res) => {
+      // Generate or reuse session ID
+      let sessionId = req.body.sessionId;
+      if (!sessionId) {
+        sessionId = crypto.randomUUID();
+      }
+
       const query = req.body.query;
       const history = req.body.history || [];
-      const sessionId = req.body.sessionId || null;
 
       if (!query) {
         return res.status(400).json({ error: "Missing query" });
@@ -142,7 +148,7 @@ async function main() {
 
       if (greetings[normalized]) {
         logChat(sessionId, query, greetings[normalized]);
-        return res.json({ answer: greetings[normalized] });
+        return res.json({ answer: greetings[normalized], sessionId });
       }
 
       // Quick keyword triggers
@@ -158,7 +164,7 @@ async function main() {
 
       if (quickTriggers[normalized]) {
         logChat(sessionId, query, quickTriggers[normalized]);
-        return res.json({ answer: quickTriggers[normalized] });
+        return res.json({ answer: quickTriggers[normalized], sessionId });
       }
 
       // Controlled Personal Facts
@@ -197,11 +203,13 @@ async function main() {
 
           const creativeReply = await chatModel.invoke([systemMsg, userMsg]);
           logChat(sessionId, query, creativeReply.content);
-          return res.json({ answer: creativeReply.content });
+          addToHistory(sessionId, "user", query);
+          addToHistory(sessionId, "assistant", creativeReply.content);
+          return res.json({ answer: creativeReply.content, sessionId });
         } catch (err) {
           console.error("Error generating creative reply:", err);
           logChat(sessionId, query, factResponse, err);
-          return res.json({ answer: factResponse });
+          return res.json({ answer: factResponse, sessionId });
         }
       }
 
@@ -220,7 +228,9 @@ async function main() {
 
         if (isRagRelevant) {
           logChat(sessionId, query, ragAnswer);
-          return res.json({ answer: ragAnswer });
+          addToHistory(sessionId, "user", query);
+          addToHistory(sessionId, "assistant", ragAnswer);
+          return res.json({ answer: ragAnswer, sessionId });
         }
 
         const systemMessage = {
@@ -265,7 +275,9 @@ If you're unsure about something, say:
 
         if (!isGroqWeak) {
           logChat(sessionId, query, groqAnswer);
-          return res.json({ answer: groqAnswer });
+          addToHistory(sessionId, "user", query);
+          addToHistory(sessionId, "assistant", groqAnswer);
+          return res.json({ answer: groqAnswer, sessionId });
         }
 
         // Brave Search fallback
@@ -273,12 +285,14 @@ If you're unsure about something, say:
           const braveResults = await performWebSearch(query);
           const fallbackAnswer = `I couldn't answer confidently, so I searched the web for you:\n\n${braveResults}`;
           logChat(sessionId, query, fallbackAnswer);
-          return res.json({ answer: fallbackAnswer });
+          addToHistory(sessionId, "user", query);
+          addToHistory(sessionId, "assistant", fallbackAnswer);
+          return res.json({ answer: fallbackAnswer, sessionId });
         } catch (braveError) {
           console.error("Brave Search failed:", braveError.message);
           const fallbackFailAnswer = "I'm not sure about that, and I couldn't fetch live search results at the moment. Please try again later.";
           logChat(sessionId, query, fallbackFailAnswer, braveError);
-          return res.json({ answer: fallbackFailAnswer });
+          return res.json({ answer: fallbackFailAnswer, sessionId });
         }
 
       } catch (error) {
@@ -298,4 +312,4 @@ If you're unsure about something, say:
   }
 }
 
-main();
+setup();
