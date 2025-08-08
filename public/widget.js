@@ -6,15 +6,22 @@
 let conversationHistory = [];
 
 // Function to append messages to the chat UI
-function appendMessage(sender, text) {
-  const messagesContainer = document.getElementById("chat-messages");
+function appendMessage(role, text) {
+  const msg = document.createElement("div");
+  msg.className = `message ${role}`;
 
-  const messageElem = document.createElement("div");
-  messageElem.classList.add("message", sender);
-  messageElem.innerHTML = text;
+  // Replace multiple line breaks with just one
+  let formatted = text
+    .replace(/(?:\r\n|\r|\n){2,}/g, "<br>") // multiple line breaks to one <br>
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`(.*?)`/g, "<code>$1</code>");
 
-  messagesContainer.appendChild(messageElem);
-  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  // Trim leading/trailing whitespace
+  formatted = formatted.trim();
+
+  msg.innerHTML = formatted;
+  chatMessages.appendChild(msg);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
 // Function to send a message to the server
