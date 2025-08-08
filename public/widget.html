@@ -1,4 +1,4 @@
-widget.html: <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
@@ -109,48 +109,50 @@ html, body {
   </div>
 
   <script>
-    const chatInput = document.getElementById("chat-input");
-    const sendButton = document.getElementById("send-button");
-    const chatMessages = document.getElementById("chat-messages");
+const chatInput = document.getElementById("chat-input");
+const sendButton = document.getElementById("send-button");
+const chatMessages = document.getElementById("chat-messages");
 
-    function appendMessage(role, text) {
+function appendMessage(role, text) {
   const msg = document.createElement("div");
   msg.className = `message ${role}`;
 
-  // Replace newlines with <br> for line breaks
   const formatted = text
     .replace(/(?:\r\n|\r|\n)/g, "<br>")
-    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") // Optional: bold markdown
-    .replace(/`(.*?)`/g, "<code>$1</code>");           // Optional: inline code
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`(.*?)`/g, "<code>$1</code>");
 
   msg.innerHTML = formatted;
   chatMessages.appendChild(msg);
   chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
+async function sendMessage() {
+  const query = chatInput.value.trim();
+  if (!query) return;
 
-    sendButton.onclick = async () => {
-      const query = chatInput.value.trim();
-      if (!query) return;
-      appendMessage("user", query);
-      chatInput.value = "";
+  appendMessage("user", query);
+  chatInput.value = "";
 
-      try {
-        const res = await fetch("/api/ask", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query })
-        });
-        const data = await res.json();
-        appendMessage("bot", data.answer || "Sorry, I couldn't understand that.");
-      } catch (err) {
-        appendMessage("bot", "Error contacting server.");
-      }
-    };
-
-    chatInput.addEventListener("keypress", function (e) {
-      if (e.key === "Enter") sendButton.click();
+  try {
+    const res = await fetch("https://shivaboys-chatbot.onrender.com/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query })
     });
-  </script>
+
+    const data = await res.json();
+    appendMessage("bot", data.answer || "Sorry, I couldn't understand that.");
+  } catch (err) {
+    appendMessage("bot", "⚠️ Error contacting Sage.AI server.");
+  }
+}
+
+sendButton.onclick = sendMessage;
+chatInput.addEventListener("keypress", e => {
+  if (e.key === "Enter") sendMessage();
+});
+</script>
+
 </body>
 </html>
