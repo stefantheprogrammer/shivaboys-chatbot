@@ -34,12 +34,10 @@
       gap: 8px;
     }
     .message {
-  margin: 4px 0; /* reduce from 8px */
-  padding: 8px 12px; /* slightly reduce padding */
-  border-radius: 15px;
-  max-width: 80%;
-  word-wrap: break-word;
-  white-space: pre-wrap;
+  white-space: pre-wrap; /* preserve line breaks */
+  line-height: 1.3;       /* tighter line height */
+  margin-bottom: 10px;    /* space between separate messages */
+  padding: 8px 12px;
 }
 
     .message.user {
@@ -82,6 +80,13 @@
       font-family: monospace;
       margin: 8px 0;
     }
+    .message p {
+  margin: 0 0 6px 0; /* bottom margin 6px, no top margin */
+}
+.message p:last-child {
+  margin-bottom: 0;
+}
+
 
     #input-area {
       display: flex;

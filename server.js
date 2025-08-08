@@ -2,28 +2,17 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
-import crypto from "crypto";
-
 import { ChatGroq } from "@langchain/groq";
 import { HuggingFaceInferenceEmbeddings } from "@langchain/community/embeddings/hf";
 import { RecursiveCharacterTextSplitter } from "langchain/text_splitter";
 import { MemoryVectorStore } from "langchain/vectorstores/memory";
 import { RetrievalQAChain } from "langchain/chains";
 import { Document } from "@langchain/core/documents";
-
 import * as fs from "fs";
 import fetch from "node-fetch";
 
-// Get __dirname in ES Modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-const app = express();
-const port = process.env.PORT || 3000;
-
-app.use(cors());
-app.use(express.json());
-app.use(express.static(path.join(__dirname, "public")));
 
 const logFilePath = path.join(__dirname, "chat_logs.txt");
 
@@ -41,7 +30,7 @@ function logChat(sessionId, userQuery, assistantReply, error = null) {
   } catch (err) {
     console.error("Failed to write chat log:", err);
   }
-  // Also log to console for server logs
+  // Also log to console for Render logs
   console.log("Chat log:", JSON.stringify(logEntry));
 }
 
@@ -58,11 +47,71 @@ function addToHistory(sessionId, role, content) {
   }
 }
 
-async function setup() {
+// Helper to detect vague inputs
+function isVagueInput(query) {
+  const q = query.trim().toLowerCase();
+
+  // 1. If query is super short (<=3 chars), vague
+  if (q.length <= 3) return true;
+
+  // 2. If query is a single word and matches vague words list, vague
+  const vagueWords = new Set([
+    "fees",
+    "fee",
+    "subjects",
+    "subject",
+    "timetable",
+    "schedule",
+    "exam",
+    "exams",
+    "holidays",
+    "vacation",
+    "results",
+    "marks",
+    "grades",
+    "library",
+    "uniform",
+    "transport",
+    "canteen",
+  ]);
+  if (!q.includes(" ") && vagueWords.has(q)) return true;
+
+  // 3. If no question word or typical interrogative phrase, vague
+  const questionWords = ["what", "when", "where", "how", "why", "who", "which"];
+  if (!questionWords.some(w => q.startsWith(w))) return true;
+
+  return false;
+}
+
+async function performWebSearch(query) {
+  const response = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}`, {
+    method: "GET",
+    headers: {
+      "Accept": "application/json",
+      "X-Subscription-Token": process.env.BRAVE_API_KEY
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Brave Search API error: ${response.status}`);
+  }
+
+  const result = await response.json();
+
+  if (!result.web || !result.web.results || result.web.results.length === 0) {
+    return "I searched the web, but couldn't find any relevant results.";
+  }
+
+  return result.web.results.slice(0, 3).map((r, i) =>
+    `${i + 1}. [${r.title}](${r.url})\n${r.description}`
+  ).join("\n\n");
+}
+
+async function main() {
   try {
     // Load JSON files
-    const websiteData = JSON.parse(fs.readFileSync("data/website_data.json", "utf-8"));
-    const mathSyllabus = JSON.parse(fs.readFileSync("data/csec_maths_syllabus.json", "utf-8"));
+    const websiteData = JSON.parse(fs.readFileSync(path.join(__dirname, "data/website_data.json"), "utf-8"));
+    const mathSyllabus = JSON.parse(fs.readFileSync(path.join(__dirname, "data/csec_maths_syllabus.json"), "utf-8"));
 
     // Combine documents
     const combinedData = [...websiteData, ...mathSyllabus];
@@ -95,41 +144,18 @@ async function setup() {
     // Setup RAG chain
     const chain = RetrievalQAChain.fromLLM(chatModel, vectorStore.asRetriever());
 
-    // Brave Search function
-    async function performWebSearch(query) {
-      const response = await fetch(`https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}`, {
-        method: "GET",
-        headers: {
-          "Accept": "application/json",
-          "X-Subscription-Token": process.env.BRAVE_API_KEY,
-        },
-      });
+    const app = express();
+    const port = process.env.PORT || 3000;
 
-      if (!response.ok) {
-        throw new Error(`Brave Search API error: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      if (!result.web || !result.web.results || result.web.results.length === 0) {
-        return "I searched the web, but couldn't find any relevant results.";
-      }
-
-      return result.web.results.slice(0, 3).map((r, i) =>
-        `${i + 1}. [${r.title}](${r.url})\n${r.description}`
-      ).join("\n\n");
-    }
+    app.use(cors());
+    app.use(express.json());
+    app.use(express.static(path.join(__dirname, "public")));
 
     // POST /api/ask endpoint
     app.post("/api/ask", async (req, res) => {
-      // Generate or reuse session ID
-      let sessionId = req.body.sessionId;
-      if (!sessionId) {
-        sessionId = crypto.randomUUID();
-      }
-
       const query = req.body.query;
       const history = req.body.history || [];
+      const sessionId = req.body.sessionId || null;
 
       if (!query) {
         return res.status(400).json({ error: "Missing query" });
@@ -148,11 +174,15 @@ async function setup() {
 
       if (greetings[normalized]) {
         logChat(sessionId, query, greetings[normalized]);
-        return res.json({ answer: greetings[normalized], sessionId });
+        return res.json({ answer: greetings[normalized] });
       }
 
       // Quick keyword triggers
       const quickTriggers = {
+        "fees": "Are you asking about exam fees, registration fees, or tuition fees?",
+        "fee": "Are you asking about exam fees, registration fees, or tuition fees?",
+        "subject combinations": "Are you asking about subject combinations for CSEC, CAPE, or general electives?",
+        "timetable": "Do you want the class timetable or the exam timetable?",
         "motto": "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'",
         "school motto": "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'",
         "location": "Shiva Boys' Hindu College is located at 35-37 Clarke Road, Penal, Trinidad & Tobago.",
@@ -164,7 +194,14 @@ async function setup() {
 
       if (quickTriggers[normalized]) {
         logChat(sessionId, query, quickTriggers[normalized]);
-        return res.json({ answer: quickTriggers[normalized], sessionId });
+        return res.json({ answer: quickTriggers[normalized] });
+      }
+
+      // Vague input check
+      if (isVagueInput(query)) {
+        const vaguePrompt = "I want to make sure I understand — could you please provide more details or specify your question?";
+        logChat(sessionId, query, vaguePrompt, "Vague input detected");
+        return res.json({ answer: vaguePrompt });
       }
 
       // Controlled Personal Facts
@@ -203,13 +240,11 @@ async function setup() {
 
           const creativeReply = await chatModel.invoke([systemMsg, userMsg]);
           logChat(sessionId, query, creativeReply.content);
-          addToHistory(sessionId, "user", query);
-          addToHistory(sessionId, "assistant", creativeReply.content);
-          return res.json({ answer: creativeReply.content, sessionId });
+          return res.json({ answer: creativeReply.content });
         } catch (err) {
           console.error("Error generating creative reply:", err);
           logChat(sessionId, query, factResponse, err);
-          return res.json({ answer: factResponse, sessionId });
+          return res.json({ answer: factResponse });
         }
       }
 
@@ -228,9 +263,7 @@ async function setup() {
 
         if (isRagRelevant) {
           logChat(sessionId, query, ragAnswer);
-          addToHistory(sessionId, "user", query);
-          addToHistory(sessionId, "assistant", ragAnswer);
-          return res.json({ answer: ragAnswer, sessionId });
+          return res.json({ answer: ragAnswer });
         }
 
         const systemMessage = {
@@ -266,36 +299,29 @@ If you're unsure about something, say:
         const groqAnswer = groqResponse.content || "";
 
         const weakIndicators = [
-  "according to my knowledge", "as of", "i believe", "possibly", "i'm not sure", "i don't know"
-];
-const negativePhrases = [
-  "not familiar", "don't know", "no information", "can't help with that"
-];
+          "according to my knowledge", "as of", "i believe", "possibly", "i'm not sure", "i don't know"
+        ];
 
-const isGroqWeak = weakIndicators.some(ind => groqAnswer.toLowerCase().includes(ind)) ||
-                   negativePhrases.some(phrase => groqAnswer.toLowerCase().includes(phrase));
+        const isGroqWeak = weakIndicators.some(ind =>
+          groqAnswer.toLowerCase().includes(ind)
+        );
 
-if (!isGroqWeak) {
-  logChat(sessionId, query, groqAnswer);
-  return res.json({ answer: groqAnswer });
-}
-
-// Trigger Brave Search fallback here...
-
+        if (!isGroqWeak) {
+          logChat(sessionId, query, groqAnswer);
+          return res.json({ answer: groqAnswer });
+        }
 
         // Brave Search fallback
         try {
           const braveResults = await performWebSearch(query);
           const fallbackAnswer = `I couldn't answer confidently, so I searched the web for you:\n\n${braveResults}`;
           logChat(sessionId, query, fallbackAnswer);
-          addToHistory(sessionId, "user", query);
-          addToHistory(sessionId, "assistant", fallbackAnswer);
-          return res.json({ answer: fallbackAnswer, sessionId });
+          return res.json({ answer: fallbackAnswer });
         } catch (braveError) {
           console.error("Brave Search failed:", braveError.message);
           const fallbackFailAnswer = "I'm not sure about that, and I couldn't fetch live search results at the moment. Please try again later.";
           logChat(sessionId, query, fallbackFailAnswer, braveError);
-          return res.json({ answer: fallbackFailAnswer, sessionId });
+          return res.json({ answer: fallbackFailAnswer });
         }
 
       } catch (error) {
@@ -315,4 +341,4 @@ if (!isGroqWeak) {
   }
 }
 
-setup();
+main();
