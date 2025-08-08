@@ -1,5 +1,9 @@
 import fs from "fs";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const logFilePath = path.join(__dirname, "chat_logs.txt");
 
@@ -12,5 +16,11 @@ function logChat(sessionId, userQuery, assistantReply, error = null) {
     assistantReply,
     error: error ? error.toString() : null,
   };
-  fs.appendFileSync(logFilePath, JSON.stringify(logEntry) + "\n");
+  try {
+    fs.appendFileSync(logFilePath, JSON.stringify(logEntry) + "\n");
+  } catch (err) {
+    console.error("Failed to write chat log:", err);
+  }
+  // Also log to console for Render logs
+  console.log("Chat log:", JSON.stringify(logEntry));
 }
