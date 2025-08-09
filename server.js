@@ -17,10 +17,10 @@ const __dirname = path.dirname(__filename);
 const logFilePath = path.join(__dirname, "chat_logs.txt");
 const usageFilePath = path.join(__dirname, "usage_tracker.json");
 
-// Limits — adjust as per your API limits or config
+// Limits — adjusted to include azure and remove bing
 const limits = {
-  brave: { daily: Math.floor(2000 / 30), monthly: 2000 },  // ~66 per day
-  bing: { daily: Math.floor(3000 / 30), monthly: 3000 },   // ~100 per day
+  brave: { daily: Math.floor(2000 / 30), monthly: 2000 }, // ~66 per day
+  azure: { daily: 100, monthly: 3000 }, // example Azure limits
 };
 
 // Initialize usage data file if missing
@@ -28,7 +28,7 @@ function initializeUsageData() {
   if (!fs.existsSync(usageFilePath)) {
     const initData = {
       brave: { dailyCount: 0, monthlyCount: 0, lastReset: new Date().toDateString() },
-      bing: { dailyCount: 0, monthlyCount: 0, lastReset: new Date().toDateString() },
+      azure: { dailyCount: 0, monthlyCount: 0, lastReset: new Date().toDateString() },
     };
     fs.writeFileSync(usageFilePath, JSON.stringify(initData, null, 2));
     return initData;
@@ -62,9 +62,9 @@ function resetUsageIfNeeded(data) {
   const today = new Date().toDateString();
   if (data.brave.lastReset !== today) {
     data.brave.dailyCount = 0;
-    data.bing.dailyCount = 0;
+    data.azure.dailyCount = 0;
     data.brave.lastReset = today;
-    data.bing.lastReset = today;
+    data.azure.lastReset = today;
   }
   // You can also add monthly reset logic here if needed
   return data;
@@ -162,10 +162,58 @@ function isClarificationAnswered(originalClarificationKey, userQuery) {
   );
 }
 
+// Azure Search function added
+async function performAzureSearch(query) {
+  if (!canUse("azure", usageData)) throw new Error("Azure Search quota exceeded");
+
+  const endpoint = process.env.AZURE_SEARCH_ENDPOINT; // e.g. https://your-search-service.search.windows.net
+  const apiKey = process.env.AZURE_SEARCH_API_KEY;
+  const indexName = process.env.AZURE_SEARCH_INDEX_NAME;
+
+  const url = `${endpoint}/indexes/${indexName}/docs/search?api-version=2021-04-30-Preview`;
+
+  const body = {
+    search: query,
+    top: 3,
+    select: "title,content,url",
+  };
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "api-key": apiKey,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error("Azure Search rate limit reached");
+    }
+    throw new Error(`Azure Search API error: ${response.status}`);
+  }
+
+  const result = await response.json();
+
+  incrementUsage("azure", usageData);
+
+  if (!result.value || result.value.length === 0) {
+    return "I searched the web, but couldn't find any relevant results.";
+  }
+
+  return result.value
+    .map((r, i) => `${i + 1}. [${r.title || "No title"}](${r.url || "#"})\n${r.content || ""}`)
+    .join("\n\n");
+}
+
+// Load usage data in global scope so performAzureSearch can access it
+let usageData = initializeUsageData();
+
 async function initialize() {
   try {
     // Load usage data at start
-    let usageData = loadUsageData();
+    usageData = loadUsageData();
     usageData = resetUsageIfNeeded(usageData);
     saveUsageData(usageData);
 
@@ -254,43 +302,6 @@ async function initialize() {
       return result.web.results
         .slice(0, 3)
         .map((r, i) => `${i + 1}. [${r.title}](${r.url})\n${r.description}`)
-        .join("\n\n");
-    }
-
-    async function performBingSearch(query) {
-      if (!canUse("bing", usageData)) throw new Error("Bing Search quota exceeded");
-
-      const url = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(query)}&count=3&textDecorations=true&textFormat=HTML`;
-
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Ocp-Apim-Subscription-Key": process.env.BING_API_KEY,
-          Accept: "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          throw new Error("Bing Search rate limit reached");
-        }
-        throw new Error(`Bing Search API error: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      incrementUsage("bing", usageData);
-
-      if (!result.webPages || !result.webPages.value || result.webPages.value.length === 0) {
-        return "I searched the web, but couldn't find any relevant results.";
-      }
-
-      return result.webPages.value
-        .slice(0, 3)
-        .map(
-          (r, i) =>
-            `${i + 1}. [${r.name}](${r.url})\n${r.snippet.replace(/<[^>]*>/g, "")}`
-        )
         .join("\n\n");
     }
 
@@ -400,21 +411,21 @@ Would you like to check the school’s website or ask someone directly?
         } catch (braveError) {
           console.error("Brave Search failed or quota exceeded:", braveError.message);
 
-          // Bing fallback
+          // Azure fallback
           try {
-            if (!canUse("bing", usageData)) throw new Error("Bing Search quota exceeded");
-            const bingResults = await performBingSearch(queryRaw);
-            const fallbackAnswer = `I couldn't find a confident answer, so I searched the web for you:\n\n${bingResults}`;
+            if (!canUse("azure", usageData)) throw new Error("Azure Search quota exceeded");
+            const azureResults = await performAzureSearch(queryRaw);
+            const fallbackAnswer = `I couldn't find a confident answer, so I searched Azure for you:\n\n${azureResults}`;
             addToHistory(sessionId, "bot", fallbackAnswer);
             logChat(sessionId, queryRaw, fallbackAnswer);
             return res.json({ answer: fallbackAnswer, sessionId });
-          } catch (bingError) {
-            console.error("Bing Search failed or quota exceeded:", bingError.message);
+          } catch (azureError) {
+            console.error("Azure Search failed or quota exceeded:", azureError.message);
 
             const finalFallback =
               "I'm sorry, I don't have that information at the moment. For more details, please contact Shiva Boys' Hindu College directly at (868) 372-8822 or email ShivaBoys.sec@fac.edu.tt.";
             addToHistory(sessionId, "bot", finalFallback);
-            logChat(sessionId, queryRaw, finalFallback, bingError);
+            logChat(sessionId, queryRaw, finalFallback, azureError);
             return res.json({ answer: finalFallback, sessionId });
           }
         }
