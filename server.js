@@ -166,15 +166,16 @@ async function initialize() {
     // Brave Search API function
     async function performWebSearch(query) {
       const response = await fetch(
-        https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)},
-        {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-            "X-Subscription-Token": process.env.BRAVE_API_KEY,
-          },
-        }
-      );
+  `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}`,
+  {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      "X-Subscription-Token": process.env.BRAVE_API_KEY,
+    },
+  }
+);
+
 
       if (!response.ok) throw new Error(Brave Search API error: ${response.status});
 
