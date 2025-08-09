@@ -32,7 +32,7 @@ const synonymMap = {
 function normalizeQuery(query) {
   let normalized = query.toLowerCase();
   for (const [alias, canonical] of Object.entries(synonymMap)) {
-    const regex = new RegExp(`\\b${alias}\\b`, "gi");
+    const regex = new RegExp(\\b${alias}\\b, "gi");
     normalized = normalized.replace(regex, canonical);
   }
   return normalized;
@@ -103,28 +103,70 @@ function isClarificationAnswered(originalClarificationKey, userQuery) {
 
 async function initialize() {
   try {
-    const websiteData = JSON.parse(fs.readFileSync("data/website_data.json", "utf-8"));
-    const mathSyllabus = JSON.parse(fs.readFileSync("data/csec_maths_syllabus.json", "utf-8"));
+    // Auto-load all JSON files in the data folder
+    const dataFolder = path.join(__dirname, "data");
+    if (!fs.existsSync(dataFolder)) {
+      throw new Error(`Data folder not found at ${dataFolder}`);
+    }
 
-    const combinedData = [...websiteData, ...mathSyllabus];
+    const dataFiles = fs.readdirSync(dataFolder).filter((f) => f.endsWith(".json"));
+    let combinedData = [];
+
+    for (const file of dataFiles) {
+      const filePath = path.join(dataFolder, file);
+      try {
+        const fileContent = JSON.parse(fs.readFileSync(filePath, "utf-8"));
+        if (Array.isArray(fileContent)) {
+          combinedData = combinedData.concat(fileContent);
+          console.log(`Loaded ${file} (${fileContent.length} items)`);
+        } else {
+          // Support single-document JSON objects with { title, content } as a fallback
+          if (fileContent && typeof fileContent === "object" && fileContent.content) {
+            combinedData.push(fileContent);
+            console.log(`Loaded ${file} (single object)`);
+          } else {
+            console.warn(`⚠️ Skipped ${file} — expected an array of documents or an object with {content}`);
+          }
+        }
+      } catch (e) {
+        console.error(`❌ Failed to parse ${file}:`, e.message);
+      }
+    }
+
+    if (combinedData.length === 0) {
+      console.warn("⚠️ No data loaded from /data — knowledge base will be empty.");
+    } else {
+      console.log(`✅ Combined data size: ${combinedData.length} entries`);
+    }
+
+    // Convert combined data into Documents for the RAG pipeline
     const rawDocs = combinedData.map((entry) =>
       new Document({ pageContent: entry.content, metadata: { title: entry.title || "Untitled" } })
     );
 
+    // Split documents into chunks
     const splitter = new RecursiveCharacterTextSplitter({ chunkSize: 500, chunkOverlap: 50 });
     const splitDocs = await splitter.splitDocuments(rawDocs);
 
-    const embeddings = new HuggingFaceInferenceEmbeddings({ model: "sentence-transformers/all-MiniLM-L6-v2" });
+    // Create embeddings and vector store
+    const embeddings = new HuggingFaceInferenceEmbeddings({
+      model: "sentence-transformers/all-MiniLM-L6-v2",
+    });
     const vectorStore = await MemoryVectorStore.fromDocuments(splitDocs, embeddings);
 
-    const chatModel = new ChatGroq({ model: "llama3-8b-8192", apiKey: process.env.GROQ_API_KEY });
+    // Initialize Groq chat model and RAG chain (unchanged)
+    const chatModel = new ChatGroq({
+      model: "llama3-8b-8192",
+      apiKey: process.env.GROQ_API_KEY,
+    });
 
     const chain = RetrievalQAChain.fromLLM(chatModel, vectorStore.asRetriever());
+
 
     // Brave Search API function
     async function performWebSearch(query) {
       const response = await fetch(
-        `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}`,
+        https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)},
         {
           method: "GET",
           headers: {
@@ -134,7 +176,7 @@ async function initialize() {
         }
       );
 
-      if (!response.ok) throw new Error(`Brave Search API error: ${response.status}`);
+      if (!response.ok) throw new Error(Brave Search API error: ${response.status});
 
       const result = await response.json();
 
@@ -144,7 +186,7 @@ async function initialize() {
 
       return result.web.results
         .slice(0, 3)
-        .map((r, i) => `${i + 1}. [${r.title}](${r.url})\n${r.description}`)
+        .map((r, i) => ${i + 1}. [${r.title}](${r.url})\n${r.description})
         .join("\n\n");
     }
 
@@ -239,7 +281,7 @@ async function initialize() {
         for (const key in personalFacts) {
           const fact = personalFacts[key];
           if (fact.keywords.some((kw) => qNorm.includes(kw))) {
-            return `The ${fact.description} is ${fact.name}.\n\n${fact.comment}`;
+            return The ${fact.description} is ${fact.name}.\n\n${fact.comment};
           }
         }
         return null;
@@ -251,7 +293,7 @@ async function initialize() {
         try {
           const systemMsg = {
             role: "system",
-            content: `You are Sage, the friendly AI assistant for Shiva Boys' Hindu College. Respond warmly and naturally.`,
+            content: You are Sage, the friendly AI assistant for Shiva Boys' Hindu College. Respond warmly and naturally.,
           };
           const userMsg = {
             role: "user",
@@ -287,7 +329,7 @@ async function initialize() {
 
         const systemMessage = {
           role: "system",
-          content: `
+          content: 
 You are Sage — the official AI assistant for **Shiva Boys' Hindu College**, located at **35-37 Clarke Road, Penal, Trinidad & Tobago**.
 
 Your job is to assist students, parents, and teachers with:
@@ -306,7 +348,7 @@ Always introduce yourself as:
 
 If you're unsure about something, say:
 “I’m not sure about that. Would you like to check the school’s website or ask someone directly?”
-          `.trim(),
+          .trim(),
         };
 
         const groqResponse = await chatModel.invoke([...history, { role: "user", content: queryRaw }]);
@@ -333,7 +375,7 @@ If you're unsure about something, say:
         // Brave Search fallback
         try {
           const braveResults = await performWebSearch(queryRaw);
-          const fallbackAnswer = `I couldn't answer confidently, so I searched the web for you:\n\n${braveResults}`;
+          const fallbackAnswer = I couldn't answer confidently, so I searched the web for you:\n\n${braveResults};
           addToHistory(sessionId, "bot", fallbackAnswer);
           logChat(sessionId, queryRaw, fallbackAnswer);
           return res.json({ answer: fallbackAnswer, sessionId });
@@ -353,7 +395,7 @@ If you're unsure about something, say:
     });
 
     app.listen(port, () => {
-      console.log(`Server running on port ${port}`);
+      console.log(Server running on port ${port});
     });
   } catch (err) {
     console.error("Error during setup:", err);
