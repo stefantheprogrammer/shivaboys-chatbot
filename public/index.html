@@ -143,18 +143,42 @@ const sendButton = document.getElementById("send-button");
 const chatMessages = document.getElementById("chat-messages");
 const form = document.getElementById("chat-input-area");
 
-function appendMessage(role, text) {
+function appendMessage(role, text, isTemporary = false) {
   const msg = document.createElement("div");
   msg.className = `message ${role}`;
 
-  const formatted = text
-    .replace(/(?:\r\n|\r|\n)/g, "<br>")
-    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-    .replace(/`(.*?)`/g, "<code>$1</code>");
+  if (isTemporary) {
+    msg.dataset.temp = "true";
+    // Create animated dots span
+    const baseText = document.createElement("span");
+    baseText.textContent = "Thinking";
+    const dots = document.createElement("span");
+    dots.textContent = "...";
+    dots.style.display = "inline-block";
+    dots.style.width = "1em";
+    msg.appendChild(baseText);
+    msg.appendChild(dots);
 
-  msg.innerHTML = formatted;
+    let dotCount = 0;
+    const interval = setInterval(() => {
+      dotCount = (dotCount + 1) % 4;
+      dots.textContent = ".".repeat(dotCount);
+    }, 500);
+
+    // Store interval ID so we can clear later
+    msg._dotInterval = interval;
+  } else {
+    // Replace newlines with <br>
+    const formatted = text
+      .replace(/(?:\r\n|\r|\n)/g, "<br>")
+      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+      .replace(/`(.*?)`/g, "<code>$1</code>");
+    msg.innerHTML = formatted;
+  }
+
   chatMessages.appendChild(msg);
   chatMessages.scrollTop = chatMessages.scrollHeight;
+  return msg; // Return the message element for further use
 }
 
 async function sendMessage() {
@@ -164,17 +188,31 @@ async function sendMessage() {
   appendMessage("user", query);
   chatInput.value = "";
 
+  // Add temporary "thinking" message and keep reference to it
+  const thinkingMsg = appendMessage("bot", "", true);
+
   try {
     const res = await fetch("https://shivaboys-chatbot.onrender.com/api/ask", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query })
+      body: JSON.stringify({ query }),
     });
 
     const data = await res.json();
-    appendMessage("bot", data.answer || "Sorry, I couldn't understand that.");
+
+    // Stop dots animation & replace temporary message content
+    clearInterval(thinkingMsg._dotInterval);
+    thinkingMsg.dataset.temp = "";
+    thinkingMsg.innerHTML = data.answer
+      ? data.answer
+          .replace(/(?:\r\n|\r|\n)/g, "<br>")
+          .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+          .replace(/`(.*?)`/g, "<code>$1</code>")
+      : "Sorry, I couldn't understand that.";
   } catch (err) {
-    appendMessage("bot", "⚠️ Error contacting Sage.AI server.");
+    clearInterval(thinkingMsg._dotInterval);
+    thinkingMsg.dataset.temp = "";
+    thinkingMsg.textContent = "⚠️ Error contacting Sage.AI server.";
   }
 }
 
