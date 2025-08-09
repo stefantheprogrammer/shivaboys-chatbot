@@ -190,9 +190,15 @@ async function sendMessage() {
 
 
 sendButton.onclick = sendMessage;
-chatInput.addEventListener("keypress", e => {
-  if (e.key === "Enter") sendMessage();
+
+chatInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault(); // stop newline
+    sendMessage();
+  }
+  // Shift+Enter will just add a newline automatically
 });
+
 </script>
 
 </body>
