@@ -162,22 +162,20 @@ async function initialize() {
 
     const chain = RetrievalQAChain.fromLLM(chatModel, vectorStore.asRetriever());
 
-
     // Brave Search API function
     async function performWebSearch(query) {
       const response = await fetch(
-  `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}`,
-  {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      "X-Subscription-Token": process.env.BRAVE_API_KEY,
-    },
-  }
-);
+        `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}`,
+        {
+          method: "GET",
+          headers: {
+            Accept: "application/json",
+            "X-Subscription-Token": process.env.BRAVE_API_KEY,
+          },
+        }
+      );
 
-
-      if (!response.ok) throw new Error(Brave Search API error: ${response.status});
+      if (!response.ok) throw new Error(`Brave Search API error: ${response.status}`);
 
       const result = await response.json();
 
@@ -187,7 +185,7 @@ async function initialize() {
 
       return result.web.results
         .slice(0, 3)
-        .map((r, i) => ${i + 1}. [${r.title}](${r.url})\n${r.description})
+        .map((r, i) => `${i + 1}. [${r.title}](${r.url})\n${r.description}`)
         .join("\n\n");
     }
 
@@ -282,7 +280,7 @@ async function initialize() {
         for (const key in personalFacts) {
           const fact = personalFacts[key];
           if (fact.keywords.some((kw) => qNorm.includes(kw))) {
-            return The ${fact.description} is ${fact.name}.\n\n${fact.comment};
+            return `The ${fact.description} is ${fact.name}.\n\n${fact.comment}`;
           }
         }
         return null;
@@ -294,7 +292,7 @@ async function initialize() {
         try {
           const systemMsg = {
             role: "system",
-            content: You are Sage, the friendly AI assistant for Shiva Boys' Hindu College. Respond warmly and naturally.,
+            content: `You are Sage, the friendly AI assistant for Shiva Boys' Hindu College. Respond warmly and naturally.`,
           };
           const userMsg = {
             role: "user",
@@ -330,7 +328,7 @@ async function initialize() {
 
         const systemMessage = {
           role: "system",
-          content: 
+          content: `
 You are Sage — the official AI assistant for **Shiva Boys' Hindu College**, located at **35-37 Clarke Road, Penal, Trinidad & Tobago**.
 
 Your job is to assist students, parents, and teachers with:
@@ -349,7 +347,7 @@ Always introduce yourself as:
 
 If you're unsure about something, say:
 “I’m not sure about that. Would you like to check the school’s website or ask someone directly?”
-          .trim(),
+          `.trim(),
         };
 
         const groqResponse = await chatModel.invoke([...history, { role: "user", content: queryRaw }]);
@@ -376,7 +374,7 @@ If you're unsure about something, say:
         // Brave Search fallback
         try {
           const braveResults = await performWebSearch(queryRaw);
-          const fallbackAnswer = I couldn't answer confidently, so I searched the web for you:\n\n${braveResults};
+          const fallbackAnswer = `I couldn't answer confidently, so I searched the web for you:\n\n${braveResults}`;
           addToHistory(sessionId, "bot", fallbackAnswer);
           logChat(sessionId, queryRaw, fallbackAnswer);
           return res.json({ answer: fallbackAnswer, sessionId });
@@ -396,7 +394,7 @@ If you're unsure about something, say:
     });
 
     app.listen(port, () => {
-      console.log(Server running on port ${port});
+      console.log(`Server running on port ${port}`);
     });
   } catch (err) {
     console.error("Error during setup:", err);
