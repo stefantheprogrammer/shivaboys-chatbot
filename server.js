@@ -19,8 +19,8 @@ const usageFilePath = path.join(__dirname, "usage_tracker.json");
 
 // Limits — adjust as per your API limits or config
 const limits = {
-  brave: { daily: 1000, monthly: 30000 },
-  bing: { daily: 1000, monthly: 30000 },
+  brave: { daily: Math.floor(2000 / 30), monthly: 2000 },  // ~66 per day
+  bing: { daily: Math.floor(3000 / 30), monthly: 3000 },   // ~100 per day
 };
 
 // Initialize usage data file if missing
