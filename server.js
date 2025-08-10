@@ -180,7 +180,7 @@ async function initialize() {
 
     const dataFolder = path.join(__dirname, "data");
     if (!fs.existsSync(dataFolder)) {
-      throw new Error(Data folder not found at ${dataFolder});
+      throw new Error(`Data folder not found at ${dataFolder}`);
     }
 
     const dataFiles = fs.readdirSync(dataFolder).filter((f) => f.endsWith(".json"));
