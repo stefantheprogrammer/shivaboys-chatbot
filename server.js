@@ -530,6 +530,7 @@ Would you like to check the school’s website or ask someone directly?
   "nothing found",
   "don't recall",
   "cannot locate",
+  "as of my knowledge cutoff"
 ];
 
 
