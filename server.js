@@ -308,157 +308,155 @@ async function performBingSearch(query) {
 
 
     app.post("/api/ask", async (req, res) => {
-      const queryRaw = req.body.query;
-      const history = req.body.history || [];
-      let sessionId = req.body.sessionId;
+  const queryRaw = req.body.query;
+  const history = req.body.history || [];
+  let sessionId = req.body.sessionId;
 
-      if (!queryRaw) return res.status(400).json({ error: "Missing query" });
+  if (!queryRaw) return res.status(400).json({ error: "Missing query" });
 
-// Create sessionId if none provided
-      if (!sessionId) sessionId = uuidv4();
+  // Create sessionId if none provided
+  if (!sessionId) sessionId = uuidv4();
 
-// Normalize query for alias mapping
-      const normalized = normalizeQuery(queryRaw.trim());
+  // Normalize query for alias mapping
+  const normalized = normalizeQuery(queryRaw.trim());
 
-// Add to conversation history
-      addToHistory(sessionId, "user", queryRaw);
+  // Add to conversation history
+  addToHistory(sessionId, "user", queryRaw);
 
-      // Add your existing greeting, quick triggers, clarifications, personal facts logic here (omitted for brevity)
+  // Initial greetings
+  const greetings = {
+    hi: "Hi there! 👋 I’m Sage, the AI assistant for Shiva Boys’ Hindu College. How can I help you today?",
+    hello: "Hello! 😊 This is Sage from Shiva Boys’ Hindu College. What would you like to know?",
+    "good morning": "Good morning! ☀️ I’m Sage, happy to assist you with anything about Shiva Boys’ Hindu College.",
+    "good afternoon": "Good afternoon! 👋 I’m Sage. Let me know how I can help regarding the school.",
+    "good evening": "Good evening! 👋 I’m Sage. Let me know how I can help regarding the school.",
+    "thank you": "You're welcome! 😊 Always happy to help.",
+    thanks: "You're welcome! 😊 Always happy to help.",
+    thx: "You're welcome! 😊 Always happy to help."
+  };
 
-// Initial greetings
-      const greetings = {
-  hi: "Hi there! 👋 I’m Sage, the AI assistant for Shiva Boys’ Hindu College. How can I help you today?",
-  hello: "Hello! 😊 This is Sage from Shiva Boys’ Hindu College. What would you like to know?",
-  "good morning": "Good morning! ☀️ I’m Sage, happy to assist you with anything about Shiva Boys’ Hindu College.",
-  "good afternoon": "Good afternoon! 👋 I’m Sage. Let me know how I can help regarding the school.",
-  "good evening": "Good evening! 👋 I’m Sage. Let me know how I can help regarding the school.",
-  "thank you": "You're welcome! 😊 Always happy to help.",
-  thanks: "You're welcome! 😊 Always happy to help.",
-  thx: "You're welcome! 😊 Always happy to help."
-};
+  if (greetings[normalized]) {
+    const greetingReply = greetings[normalized];
+    addToHistory(sessionId, "bot", greetingReply);
+    logChat(sessionId, queryRaw, greetingReply);
+    return res.json({ answer: greetingReply, sessionId });
+  }
 
-      if (greetings[normalized]) {
-        const greetingReply = greetings[normalized];
-        addToHistory(sessionId, "bot", greetingReply);
-        logChat(sessionId, queryRaw, greetingReply);
-        return res.json({ answer: greetingReply, sessionId });
+  // Quick keyword triggers
+  const quickTriggers = {
+    motto: "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'",
+    "school motto": "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'",
+    location: "Shiva Boys' Hindu College is located at 35-37 Clarke Road, Penal, Trinidad & Tobago.",
+    address: "Shiva Boys' Hindu College is located at 35-37 Clarke Road, Penal, Trinidad & Tobago.",
+    phone: "Shiva Boys' Hindu College's phone number is (868)372-8822.",
+    contact: "Shiva Boys' Hindu College's phone number is (868)372-8822.",
+    email: "Shiva Boys' Hindu College's email address is ShivaBoys.sec@fac.edu.tt",
+  };
+
+  if (quickTriggers[normalized]) {
+    const triggerReply = quickTriggers[normalized];
+    addToHistory(sessionId, "bot", triggerReply);
+    logChat(sessionId, queryRaw, triggerReply);
+    return res.json({ answer: triggerReply, sessionId });
+  }
+
+  // Clarification check for vague queries
+  if (clarificationMap[normalized]) {
+    if (!clarificationAsked[sessionId]) clarificationAsked[sessionId] = new Set();
+
+    if (clarificationAsked[sessionId].has(normalized)) {
+      // Check if user answered the clarification question
+      if (isClarificationAnswered(normalized, queryRaw)) {
+        // Mark clarification as answered and continue processing
+        clarificationAsked[sessionId].delete(normalized);
+      } else {
+        // Ask clarification again
+        const clarificationReply = clarificationMap[normalized];
+        addToHistory(sessionId, "bot", clarificationReply);
+        logChat(sessionId, queryRaw, clarificationReply);
+        return res.json({ answer: clarificationReply, sessionId });
       }
+    } else {
+      // First time ask clarification
+      const clarificationReply = clarificationMap[normalized];
+      clarificationAsked[sessionId].add(normalized);
+      addToHistory(sessionId, "bot", clarificationReply);
+      logChat(sessionId, queryRaw, clarificationReply);
+      return res.json({ answer: clarificationReply, sessionId });
+    }
+  }
 
-      // Quick keyword triggers
-      const quickTriggers = {
-        motto: "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'",
-        "school motto": "The motto for Shiva Boys' Hindu College is: 'Excellence, Duty, Truth'",
-        location: "Shiva Boys' Hindu College is located at 35-37 Clarke Road, Penal, Trinidad & Tobago.",
-        address: "Shiva Boys' Hindu College is located at 35-37 Clarke Road, Penal, Trinidad & Tobago.",
-        phone: "Shiva Boys' Hindu College's phone number is (868)372-8822.",
-        contact: "Shiva Boys' Hindu College's phone number is (868)372-8822.",
-        email: "Shiva Boys' Hindu College's email address is ShivaBoys.sec@fac.edu.tt",
+  // Controlled Personal Facts
+  const personalFacts = {
+    principal: {
+      keywords: ["principal", "headmaster", "school principal"],
+      name: "Mr. Devinesh Neeranjan",
+      description: "the Principal of Shiva Boys' Hindu College",
+      comment: "Yes, his name is quite unique and intriguing.",
+    },
+  };
+
+  function checkPersonalFacts(q) {
+    const qNorm = q.toLowerCase();
+    for (const key in personalFacts) {
+      const fact = personalFacts[key];
+      if (fact.keywords.some((kw) => qNorm.includes(kw))) {
+        return `The ${fact.description} is ${fact.name}.\n\n${fact.comment}`;
+      }
+    }
+    return null;
+  }
+
+  // Step 1: Check personal facts
+  const factResponse = checkPersonalFacts(queryRaw);
+  if (factResponse) {
+    try {
+      const systemMsg = {
+        role: "system",
+        content: "You are Sage, the friendly AI assistant for Shiva Boys' Hindu College. Respond warmly and naturally.",
+      };
+      const userMsg = {
+        role: "user",
+        content: factResponse,
       };
 
-      if (quickTriggers[normalized]) {
-        const triggerReply = quickTriggers[normalized];
-        addToHistory(sessionId, "bot", triggerReply);
-        logChat(sessionId, queryRaw, triggerReply);
-        return res.json({ answer: triggerReply, sessionId });
-      }
+      const creativeReply = await chatModel.invoke([systemMsg, userMsg]);
+      addToHistory(sessionId, "bot", creativeReply.content);
+      logChat(sessionId, queryRaw, creativeReply.content);
+      return res.json({ answer: creativeReply.content, sessionId });
+    } catch (err) {
+      console.error("Error generating creative reply:", err);
+      logChat(sessionId, queryRaw, factResponse, err);
+      return res.json({ answer: factResponse, sessionId });
+    }
+  }
 
-      // Clarification check for vague queries
-      if (clarificationMap[normalized]) {
-        if (!clarificationAsked[sessionId]) clarificationAsked[sessionId] = new Set();
+  // Step 2: RAG + LLM chain
+  try {
+    const ragResult = await chain.call({ query: queryRaw });
+    const ragAnswer = ragResult.text;
 
-        if (clarificationAsked[sessionId].has(normalized)) {
-          // Check if user answered the clarification question
-          if (isClarificationAnswered(normalized, queryRaw)) {
-            // Mark clarification as answered and continue processing
-            clarificationAsked[sessionId].delete(normalized);
-          } else {
-            // Ask clarification again
-            const clarificationReply = clarificationMap[normalized];
-            addToHistory(sessionId, "bot", clarificationReply);
-            logChat(sessionId, queryRaw, clarificationReply);
-            return res.json({ answer: clarificationReply, sessionId });
-          }
-        } else {
-          // First time ask clarification
-          const clarificationReply = clarificationMap[normalized];
-          clarificationAsked[sessionId].add(normalized);
-          addToHistory(sessionId, "bot", clarificationReply);
-          logChat(sessionId, queryRaw, clarificationReply);
-          return res.json({ answer: clarificationReply, sessionId });
-        }
-      }
+    const irrelevantResponses = [
+      "i'm sorry",
+      "i don't know",
+      "sorry, i didn't understand",
+    ];
 
-      // Controlled Personal Facts
-      const personalFacts = {
-        principal: {
-          keywords: ["principal", "headmaster", "school principal"],
-          name: "Mr. Devinesh Neeranjan",
-          description: "the Principal of Shiva Boys' Hindu College",
-          comment: "Yes, his name is quite unique and intriguing.",
-        },
-      };
+    const isRagRelevant =
+      ragAnswer &&
+      !irrelevantResponses.some((msg) =>
+        ragAnswer.toLowerCase().includes(msg)
+      );
 
-      function checkPersonalFacts(q) {
-        const qNorm = q.toLowerCase();
-        for (const key in personalFacts) {
-          const fact = personalFacts[key];
-          if (fact.keywords.some((kw) => qNorm.includes(kw))) {
-            return `The ${fact.description} is ${fact.name}.\n\n${fact.comment}`;
-          }
-        }
-        return null;
-      }
+    if (isRagRelevant) {
+      addToHistory(sessionId, "bot", ragAnswer);
+      logChat(sessionId, queryRaw, ragAnswer);
+      return res.json({ answer: ragAnswer, sessionId });
+    }
 
-      // Step 1: Check personal facts
-      const factResponse = checkPersonalFacts(queryRaw);
-      if (factResponse) {
-        try {
-          const systemMsg = {
-            role: "system",
-            content: "You are Sage, the friendly AI assistant for Shiva Boys' Hindu College. Respond warmly and naturally.",
-          };
-          const userMsg = {
-            role: "user",
-            content: factResponse,
-          };
-
-          const creativeReply = await chatModel.invoke([systemMsg, userMsg]);
-          addToHistory(sessionId, "bot", creativeReply.content);
-          logChat(sessionId, queryRaw, creativeReply.content);
-          return res.json({ answer: creativeReply.content, sessionId });
-        } catch (err) {
-          console.error("Error generating creative reply:", err);
-          logChat(sessionId, queryRaw, factResponse, err);
-          return res.json({ answer: factResponse, sessionId });
-        }
-      }
-
-// Step 2: RAG + LLM chain
-      try {
-        const ragResult = await chain.call({ query: queryRaw });
-        const ragAnswer = ragResult.text;
-
-        const irrelevantResponses = [
-          "i'm sorry",
-          "i don't know",
-          "sorry, i didn't understand",
-        ];
-
-        const isRagRelevant =
-          ragAnswer &&
-          !irrelevantResponses.some((msg) =>
-            ragAnswer.toLowerCase().includes(msg)
-          );
-
-        if (isRagRelevant) {
-          addToHistory(sessionId, "bot", ragAnswer);
-          logChat(sessionId, queryRaw, ragAnswer);
-          return res.json({ answer: ragAnswer, sessionId });
-        }
-
-        const systemMessage = {
-          role: "system",
-          content: `
+    const systemMessage = {
+      role: "system",
+      content: `
 You are Sage — the official AI assistant for **Shiva Boys' Hindu College**, located at **35-37 Clarke Road, Penal, Trinidad & Tobago**.
 
 Answer the user’s question as best you can. 
@@ -490,75 +488,80 @@ If you're unsure about something or do not have specific information regarding S
 Would you like to check the school’s website or ask someone directly?
 `.trim(),
 
-        };
+    };
 
-        const chatModel = new ChatGroq({
-          model: "llama3-8b-8192",
-          apiKey: process.env.GROQ_API_KEY,
-        });
+    const chatModel = new ChatGroq({
+      model: "llama3-8b-8192",
+      apiKey: process.env.GROQ_API_KEY,
+    });
 
-        const groqResponse = await chatModel.invoke([...history, { role: "user", content: queryRaw }]);
-        const groqAnswer = groqResponse.content || "";
+    const groqResponse = await chatModel.invoke([...history, { role: "user", content: queryRaw }]);
+    const groqAnswer = groqResponse.content || "";
 
-        const weakIndicators = [
-          "according to my knowledge",
-          "as of",
-          "i believe",
-          "possibly",
-          "i'm not sure",
-          "i don't know",
-          "i don't have that info",
-          "i don't have any information",
-          "i don't have that information",
-        ];
+    const weakIndicators = [
+      "according to my knowledge",
+      "as of",
+      "i believe",
+      "possibly",
+      "i'm not sure",
+      "i don't know",
+      "i don't have that info",
+      "i don't have any information",
+      "i don't have that information",
+    ];
 
-        const isGroqWeak = weakIndicators.some((ind) =>
-          groqAnswer.toLowerCase().includes(ind)
-        );
+    const isGroqWeak = weakIndicators.some((ind) =>
+      groqAnswer.toLowerCase().includes(ind)
+    );
 
-        if (!isGroqWeak) {
-          addToHistory(sessionId, "bot", groqAnswer);
-          logChat(sessionId, queryRaw, groqAnswer);
-          return res.json({ answer: groqAnswer, sessionId });
-        }
-
-        // Brave fallback
-  if (canUse("brave", usageData)) {
-    try {
-      const braveResults = await performBraveSearch(queryRaw);
-      addToHistory(sessionId, "bot", braveResults);
-      logChat(sessionId, queryRaw, braveResults);
-      return res.json({ answer: braveResults, sessionId });
-    } catch (err) {
-      console.error("Brave failed:", err.message);
+    if (!isGroqWeak) {
+      addToHistory(sessionId, "bot", groqAnswer);
+      logChat(sessionId, queryRaw, groqAnswer);
+      return res.json({ answer: groqAnswer, sessionId });
     }
-  }
 
-  // Bing fallback
-  if (canUse("bing", usageData)) {
-    try {
-      const bingResults = await performBingSearch(queryRaw);
-      addToHistory(sessionId, "bot", bingResults);
-      logChat(sessionId, queryRaw, bingResults);
-      return res.json({ answer: bingResults, sessionId });
-    } catch (err) {
-      console.error("Bing failed:", err.message);
+    // Brave fallback
+    let braveFailed = false;
+    if (canUse("brave", usageData)) {
+      try {
+        const braveResults = await performBraveSearch(queryRaw);
+        addToHistory(sessionId, "bot", braveResults);
+        logChat(sessionId, queryRaw, braveResults);
+        return res.json({ answer: braveResults, sessionId });
+      } catch (err) {
+        braveFailed = true;
+        console.error("Brave failed:", err.message);
+      }
+    } else {
+      braveFailed = true;
     }
+
+    // Bing fallback - only if Brave is not available or failed
+    if (braveFailed && canUse("bing", usageData)) {
+      try {
+        const bingResults = await performBingSearch(queryRaw);
+        addToHistory(sessionId, "bot", bingResults);
+        logChat(sessionId, queryRaw, bingResults);
+        return res.json({ answer: bingResults, sessionId });
+      } catch (err) {
+        console.error("Bing failed:", err.message);
+      }
+    }
+
+    // Final fallback only if all above fail
+    const finalFallback =
+      "I'm sorry, I don't have that information at the moment. For more details, please contact Shiva Boys' Hindu College directly at (868) 372-8822 or email ShivaBoys.sec@fac.edu.tt.";
+    addToHistory(sessionId, "bot", finalFallback);
+    logChat(sessionId, queryRaw, finalFallback);
+    return res.json({ answer: finalFallback, sessionId });
+
+  } catch (error) {
+    console.error("Error in /api/ask:", error);
+    logChat(sessionId, queryRaw, null, error);
+    res.status(500).json({ error: "Server error during question handling." });
   }
-
-  // Final fallback only if all above fail
-  const finalFallback =
-    "I'm sorry, I don't have that information at the moment. For more details, please contact Shiva Boys' Hindu College directly at (868) 372-8822 or email ShivaBoys.sec@fac.edu.tt.";
-  addToHistory(sessionId, "bot", finalFallback);
-  logChat(sessionId, queryRaw, finalFallback);
-  return res.json({ answer: finalFallback, sessionId });
-
-} catch (error) {
-  console.error("Error in /api/ask:", error);
-  logChat(sessionId, queryRaw, null, error);
-  res.status(500).json({ error: "Server error during question handling." });
-}
-}); // closes app.post("/api/ask", ...)
+});
+ // closes app.post("/api/ask", ...)
 
     app.listen(port, () => {
       console.log(`Server running on port ${port}`);
