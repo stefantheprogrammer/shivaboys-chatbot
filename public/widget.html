@@ -184,10 +184,14 @@ async function sendMessage() {
           .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
           .replace(/`(.*?)`/g, "<code>$1</code>")
       : "Sorry, I couldn't understand that.";
+      // Scroll to the new message smoothly
+thinkingMsg.scrollIntoView({ behavior: "smooth", block: "end" });
+
   } catch (err) {
     clearInterval(thinkingMsg._dotInterval);
     thinkingMsg.dataset.temp = "";
     thinkingMsg.textContent = "⚠️ Error contacting Sage.AI server.";
+    thinkingMsg.scrollIntoView({ behavior: "smooth", block: "end" });
   }
 }
 
