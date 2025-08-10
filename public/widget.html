@@ -148,10 +148,10 @@ function appendMessage(role, text, isTemporary = false) {
     msg.innerHTML = formatted;
   }
 
-  chatMessages.appendChild(msg); 
- requestAnimationFrame(() => {
-  chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: "smooth" });
-});
+ chatMessages.appendChild(msg);
+setTimeout(() => {
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}, 50); // 50ms delay to allow rendering/layout
 
   return msg; // Return the message element for further use
 }
