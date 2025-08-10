@@ -148,7 +148,7 @@ function appendMessage(role, text, isTemporary = false) {
     msg.innerHTML = formatted;
   }
 
-  chatMessages.appendChild(msg);
+  chatMessages.appendChild(msg); 
  requestAnimationFrame(() => {
   chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: "smooth" });
 });
