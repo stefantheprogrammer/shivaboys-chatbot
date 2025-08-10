@@ -192,24 +192,24 @@ async function initialize() {
         const fileContent = JSON.parse(fs.readFileSync(filePath, "utf-8"));
         if (Array.isArray(fileContent)) {
           combinedData = combinedData.concat(fileContent);
-          console.log(Loaded ${file} (${fileContent.length} items));
+          console.log(`Loaded ${file} (${fileContent.length} items)`);
         } else {
           if (fileContent && typeof fileContent === "object" && fileContent.content) {
             combinedData.push(fileContent);
-            console.log(Loaded ${file} (single object));
+            console.log(`Loaded ${file} (single object)`);
           } else {
-            console.warn(⚠️ Skipped ${file} — expected an array of documents or an object with {content});
+            console.warn(`⚠️ Skipped ${file} — expected an array of documents or an object with {content}`);
           }
         }
       } catch (e) {
-        console.error(❌ Failed to parse ${file}:, e.message);
+        console.error(`❌ Failed to parse ${file}:, e.message`);
       }
     }
 
     if (combinedData.length === 0) {
       console.warn("⚠️ No data loaded from /data — knowledge base will be empty.");
     } else {
-      console.log(✅ Combined data size: ${combinedData.length} entries);
+      console.log(`✅ Combined data size: ${combinedData.length} entries`);
     }
 
 // Convert combined data into Documents for the RAG pipeline
@@ -254,7 +254,7 @@ async function initialize() {
         if (response.status === 429) {
           throw new Error("Brave Search rate limit reached");
         }
-        throw new Error(Brave Search API error: ${response.status});
+        throw new Error(`Brave Search API error: ${response.status}`);
       }
 
       const result = await response.json();
@@ -267,7 +267,7 @@ async function initialize() {
 
       return result.web.results
         .slice(0, 3)
-        .map((r, i) => ${i + 1}. [${r.title}](${r.url})\n${r.description})
+        .map(`(r, i) => ${i + 1}. [${r.title}](${r.url})\n${r.description}`)
         .join("\n\n");
     }
 
@@ -288,7 +288,7 @@ async function initialize() {
         if (response.status === 429) {
           throw new Error("Bing Search rate limit reached");
         }
-        throw new Error(Bing Search API error: ${response.status});
+        throw new Error(`Bing Search API error: ${response.status}`);
       }
 
       const result = await response.json();
@@ -301,10 +301,10 @@ async function initialize() {
 
       return result.webPages.value
         .slice(0, 3)
-        .map(
+        .map(`
           (r, i) =>
             ${i + 1}. [${r.name}](${r.url})\n${r.snippet.replace(/<[^>]*>/g, "")}
-        )
+        `)
         .join("\n\n");
     }
 
@@ -549,7 +549,7 @@ Would you like to check the school’s website or ask someone directly?
     });
 
     app.listen(port, () => {
-      console.log(Server running on port ${port});
+      console.log(`Server running on port ${port}`);
     });
   } catch (err) {
     console.error("Error during setup:", err);
