@@ -508,6 +508,7 @@ Would you like to check the school’s website or ask someone directly?
       "i don't have that info",
       "i don't have any information",
       "i don't have that information",
+      "I don't see any information",
     ];
 
     const isGroqWeak = weakIndicators.some((ind) =>
