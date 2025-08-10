@@ -415,7 +415,7 @@ const response = await fetch(
         try {
           const systemMsg = {
             role: "system",
-            content: You are Sage, the friendly AI assistant for Shiva Boys' Hindu College. Respond warmly and naturally.,
+            content: "You are Sage, the friendly AI assistant for Shiva Boys' Hindu College. Respond warmly and naturally.",
           };
           const userMsg = {
             role: "user",
