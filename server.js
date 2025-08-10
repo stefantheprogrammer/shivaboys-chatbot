@@ -557,11 +557,11 @@ Would you like to check the school’s website or ask someone directly?
   console.error("Error in /api/ask:", error);
   logChat(sessionId, queryRaw, null, error);
   res.status(500).json({ error: "Server error during question handling." });
-};
+}
 
     app.listen(port, () => {
       console.log(`Server running on port ${port}`);
-    });
+    })
   } catch (err) {
     console.error("Error during setup:", err);
     process.exit(1);
