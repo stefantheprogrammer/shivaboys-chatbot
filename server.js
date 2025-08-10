@@ -275,7 +275,8 @@ const response = await fetch(
     async function performBingSearch(query) {
       if (!canUse("bing", usageData)) throw new Error("Bing Search quota exceeded");
 
-      const url = https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(query)}&count=3&textDecorations=true&textFormat=HTML;
+      const url = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(query)}&count=3&textDecorations=true&textFormat=HTML`;
+
 
       const response = await fetch(url, {
         method: "GET",
