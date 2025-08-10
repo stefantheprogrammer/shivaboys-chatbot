@@ -131,11 +131,7 @@
       <div class="message bot">Sitaram! Hello! I'm the AI Assistant for Shiva Boys' Hindu College. How can I help you today?</div>
     </main>
 
-    <form id="chat-input-area" aria-label="Send message form">
-      <input type="text" id="chat-input" placeholder="Type your message…" autocomplete="off" aria-label="Chat input" required />
-      <button type="submit" id="send-button" aria-label="Send message">Send</button>
-    </form>
-    <div id="chat-input-area">
+        <div id="chat-input-area">
       <input type="text" id="chat-input" placeholder="Type your message...">
       <button id="send-button">Send</button>
     </div>
@@ -145,7 +141,7 @@
 const chatInput = document.getElementById("chat-input");
 const sendButton = document.getElementById("send-button");
 const chatMessages = document.getElementById("chat-messages");
-const form = document.getElementById("chat-input-area");
+const inputArea = document.getElementById("chat-input-area");
 
 function appendMessage(role, text, isTemporary = false) {
   const msg = document.createElement("div");
@@ -221,25 +217,20 @@ async function sendMessage() {
   thinkingMsg.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-// Handle form submit (click send OR press Enter without Shift)
-form.addEventListener("submit", async (event) => {
-  event.preventDefault(); // prevent page reload
-  await sendMessage();
-});
+// Send button click calls sendMessage
+sendButton.onclick = () => {
+  sendMessage();
+};
 
-// Handle Shift+Enter for new lines inside the input
+// Press Enter (without Shift) sends the message
 chatInput.addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey) {
-    event.preventDefault(); // stop newline
-    form.dispatchEvent(new Event("submit")); // trigger send
+    event.preventDefault(); // prevent newline
+    sendMessage();
   }
-  // If Shift+Enter → do nothing (browser will insert newline)
 });
+</script>
 
-// Optional: direct button click still works
-sendButton.onclick = () => form.dispatchEvent(new Event("submit"));
-
-  </script>
 
 </body>
 </html>

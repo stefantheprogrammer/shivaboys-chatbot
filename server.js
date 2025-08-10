@@ -499,17 +499,39 @@ Would you like to check the school’s website or ask someone directly?
     const groqAnswer = groqResponse.content || "";
 
     const weakIndicators = [
-      "according to my knowledge",
-      "as of",
-      "i believe",
-      "possibly",
-      "i'm not sure",
-      "i don't know",
-      "i don't have that info",
-      "i don't have any information",
-      "i don't have that information",
-      "I don't see any information",
-    ];
+  "i'm sorry",
+  "i do not see any information",
+  "i don't see any information",
+  "i do not have any information",
+  "i don't have any information",
+  "i don't have information",
+  "i do not have information",
+  "i don't see any mention",
+  "sorry, i don't have",
+  "apologize",
+  "no information",
+  "not found",
+  "unable to find",
+  "couldn't find",
+  "not available",
+  "cannot provide",
+  "don’t have details",
+  "don't have details",
+  "lack of information",
+  "no relevant information",
+  "not sure",
+  "don't understand",
+  "didn't understand",
+  "do not understand",
+  "not able to",
+  "can't answer",
+  "don't know how to answer",
+  "no data",
+  "nothing found",
+  "don't recall",
+  "cannot locate",
+];
+
 
     const isGroqWeak = weakIndicators.some((ind) =>
       groqAnswer.toLowerCase().includes(ind)
