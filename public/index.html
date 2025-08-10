@@ -214,6 +214,7 @@ async function sendMessage() {
     thinkingMsg.dataset.temp = "";
     thinkingMsg.textContent = "⚠️ Error contacting Sage.AI server.";
   }
+  thinkingMsg.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
 // Handle form submit (click send OR press Enter without Shift)

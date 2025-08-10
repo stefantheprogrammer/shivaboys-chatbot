@@ -330,12 +330,15 @@ const response = await fetch(
 
 // Initial greetings
       const greetings = {
-        hi: "Hi there! 👋 I’m Sage, the AI assistant for Shiva Boys’ Hindu College. How can I help you today?",
-        hello: "Hello! 😊 This is Sage from Shiva Boys’ Hindu College. What would you like to know?",
-        "good morning": "Good morning! ☀️ I’m Sage, happy to assist you with anything about Shiva Boys’ Hindu College.",
-        "good afternoon": "Good afternoon! 👋 I’m Sage. Let me know how I can help regarding the school.",
-        "good evening": "Good evening! 👋 I’m Sage. Let me know how I can help regarding the school.",
-      };
+  hi: "Hi there! 👋 I’m Sage, the AI assistant for Shiva Boys’ Hindu College. How can I help you today?",
+  hello: "Hello! 😊 This is Sage from Shiva Boys’ Hindu College. What would you like to know?",
+  "good morning": "Good morning! ☀️ I’m Sage, happy to assist you with anything about Shiva Boys’ Hindu College.",
+  "good afternoon": "Good afternoon! 👋 I’m Sage. Let me know how I can help regarding the school.",
+  "good evening": "Good evening! 👋 I’m Sage. Let me know how I can help regarding the school.",
+  "thank you": "You're welcome! 😊 Always happy to help.",
+  thanks: "You're welcome! 😊 Always happy to help.",
+  thx: "You're welcome! 😊 Always happy to help."
+};
 
       if (greetings[normalized]) {
         const greetingReply = greetings[normalized];
@@ -394,7 +397,7 @@ const response = await fetch(
           keywords: ["principal", "headmaster", "school principal"],
           name: "Mr. Devinesh Neeranjan",
           description: "the Principal of Shiva Boys' Hindu College",
-          comment: "Yes, his name is quite unique and lovely.",
+          comment: "Yes, his name is quite unique and intriguing.",
         },
       };
 
@@ -460,6 +463,10 @@ const response = await fetch(
           role: "system",
           content: `
 You are Sage — the official AI assistant for **Shiva Boys' Hindu College**, located at **35-37 Clarke Road, Penal, Trinidad & Tobago**.
+
+Answer the question as best you can, using the provided context if it is relevant. 
+If the context is missing or unrelated, use your own knowledge to answer instead.
+Do not mention the context to the user.
 
 Your job is to assist students, parents, and teachers with:
 - Information about the school
