@@ -239,16 +239,17 @@ async function initialize() {
     async function performBraveSearch(query) {
       if (!canUse("brave", usageData)) throw new Error("Brave Search quota exceeded");
 
-      const response = await fetch(
-        https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)},
-        {
-          method: "GET",
-          headers: {
-            Accept: "application/json",
-            "X-Subscription-Token": process.env.BRAVE_API_KEY,
-          },
-        }
-      );
+const response = await fetch(
+  `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}`,
+  {
+    method: "GET",
+    headers: {
+      Accept: "application/json",
+      "X-Subscription-Token": process.env.BRAVE_API_KEY,
+    },
+  }
+);
+
 
       if (!response.ok) {
         if (response.status === 429) {
