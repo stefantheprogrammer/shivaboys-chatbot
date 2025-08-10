@@ -103,7 +103,7 @@ const synonymMap = {
 function normalizeQuery(query) {
   let normalized = query.toLowerCase();
   for (const [alias, canonical] of Object.entries(synonymMap)) {
-    const regex = new RegExp(\\b${alias}\\b, "gi");
+    const regex = new RegExp(`\\b${alias}\\b`, "gi");
     normalized = normalized.replace(regex, canonical);
   }
   return normalized;
