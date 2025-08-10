@@ -236,79 +236,76 @@ async function initialize() {
     const chain = RetrievalQAChain.fromLLM(chatModel, vectorStore.asRetriever());
 
 // Brave Search API function
-    async function performBraveSearch(query) {
-      if (!canUse("brave", usageData)) throw new Error("Brave Search quota exceeded");
+async function performBraveSearch(query) {
+  if (!canUse("brave", usageData)) throw new Error("Brave Search quota exceeded");
 
-const response = await fetch(
-  `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}`,
-  {
+  const response = await fetch(
+    `https://api.search.brave.com/res/v1/web/search?q=${encodeURIComponent(query)}`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "X-Subscription-Token": process.env.BRAVE_API_KEY,
+      },
+    }
+  );
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error("Brave Search rate limit reached");
+    }
+    throw new Error(`Brave Search API error: ${response.status}`);
+  }
+
+  const result = await response.json();
+
+  incrementUsage("brave", usageData);
+
+  if (!result.web || !result.web.results || result.web.results.length === 0) {
+    return "I searched the web, but couldn't find any relevant results.";
+  }
+
+  return result.web.results
+    .slice(0, 3)
+    .map((r, i) => `${i + 1}. [${r.title}](${r.url})\n${r.description}`)
+    .join("\n\n");
+}
+
+// Bing Search API function
+async function performBingSearch(query) {
+  if (!canUse("bing", usageData)) throw new Error("Bing Search quota exceeded");
+
+  const url = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(query)}&count=3&textDecorations=true&textFormat=HTML`;
+
+  const response = await fetch(url, {
     method: "GET",
     headers: {
+      "Ocp-Apim-Subscription-Key": process.env.BING_API_KEY,
       Accept: "application/json",
-      "X-Subscription-Token": process.env.BRAVE_API_KEY,
     },
+  });
+
+  if (!response.ok) {
+    if (response.status === 429) {
+      throw new Error("Bing Search rate limit reached");
+    }
+    throw new Error(`Bing Search API error: ${response.status}`);
   }
-);
 
+  const result = await response.json();
 
-      if (!response.ok) {
-        if (response.status === 429) {
-          throw new Error("Brave Search rate limit reached");
-        }
-        throw new Error(`Brave Search API error: ${response.status}`);
-      }
+  incrementUsage("bing", usageData);
 
-      const result = await response.json();
+  if (!result.webPages || !result.webPages.value || result.webPages.value.length === 0) {
+    return "I searched the web, but couldn't find any relevant results.";
+  }
 
-      incrementUsage("brave", usageData);
+  return result.webPages.value
+    .slice(0, 3)
+    .map((r, i) => `${i + 1}. [${r.name}](${r.url})\n${r.snippet.replace(/<[^>]*>/g, "")}`)
+    .join("\n\n");
+}
 
-      if (!result.web || !result.web.results || result.web.results.length === 0) {
-        return "I searched the web, but couldn't find any relevant results.";
-      }
-
-      return result.web.results
-        .slice(0, 3)
-        .map(`(r, i) => ${i + 1}. [${r.title}](${r.url})\n${r.description}`)
-        .join("\n\n");
-    }
-
-    async function performBingSearch(query) {
-      if (!canUse("bing", usageData)) throw new Error("Bing Search quota exceeded");
-
-      const url = `https://api.bing.microsoft.com/v7.0/search?q=${encodeURIComponent(query)}&count=3&textDecorations=true&textFormat=HTML`;
-
-
-      const response = await fetch(url, {
-        method: "GET",
-        headers: {
-          "Ocp-Apim-Subscription-Key": process.env.BING_API_KEY,
-          Accept: "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        if (response.status === 429) {
-          throw new Error("Bing Search rate limit reached");
-        }
-        throw new Error(`Bing Search API error: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      incrementUsage("bing", usageData);
-
-      if (!result.webPages || !result.webPages.value || result.webPages.value.length === 0) {
-        return "I searched the web, but couldn't find any relevant results.";
-      }
-
-      return result.webPages.value
-        .slice(0, 3)
-        .map(`
-          (r, i) =>
-            ${i + 1}. [${r.name}](${r.url})\n${r.snippet.replace(/<[^>]*>/g, "")}
-        `)
-        .join("\n\n");
-    }
 
     app.post("/api/ask", async (req, res) => {
       const queryRaw = req.body.query;
@@ -464,9 +461,12 @@ const response = await fetch(
           content: `
 You are Sage — the official AI assistant for **Shiva Boys' Hindu College**, located at **35-37 Clarke Road, Penal, Trinidad & Tobago**.
 
-Answer the question as best you can, using the provided context if it is relevant. 
-If the context is missing or unrelated, use your own knowledge to answer instead.
-Do not mention the context to the user.
+Answer the user’s question as best you can. 
+If the context doesn’t help, use your own knowledge.
+If still unsure, stay brief and we’ll try a web search.
+
+❌ Never mention “provided context” or “I couldn't find that in the context.”
+✅ Speak naturally and warmly.
 
 Your job is to assist students, parents, and teachers with:
 - Information about the school
@@ -523,40 +523,41 @@ Would you like to check the school’s website or ask someone directly?
         }
 
         // Brave fallback
-        try {
-          if (!canUse("brave", usageData)) throw new Error("Brave Search quota exceeded");
-          const braveResults = await performBraveSearch(queryRaw);
-          const fallbackAnswer = `I couldn't answer confidently, so I searched the web for you:\n\n${braveResults}`;
-          addToHistory(sessionId, "bot", fallbackAnswer);
-          logChat(sessionId, queryRaw, fallbackAnswer);
-          return res.json({ answer: fallbackAnswer, sessionId });
-        } catch (braveError) {
-          console.error("Brave Search failed or quota exceeded:", braveError.message);
+  if (canUse("brave", usageData)) {
+    try {
+      const braveResults = await performBraveSearch(queryRaw);
+      addToHistory(sessionId, "bot", braveResults);
+      logChat(sessionId, queryRaw, braveResults);
+      return res.json({ answer: braveResults, sessionId });
+    } catch (err) {
+      console.error("Brave failed:", err.message);
+    }
+  }
 
-          // Bing fallback
-          try {
-            if (!canUse("bing", usageData)) throw new Error("Bing Search quota exceeded");
-            const bingResults = await performBingSearch(queryRaw);
-            const fallbackAnswer = `I couldn't find a confident answer, so I searched the web for you:\n\n${bingResults}`;
-            addToHistory(sessionId, "bot", fallbackAnswer);
-            logChat(sessionId, queryRaw, fallbackAnswer);
-            return res.json({ answer: fallbackAnswer, sessionId });
-          } catch (bingError) {
-            console.error("Bing Search failed or quota exceeded:", bingError.message);
+  // Bing fallback
+  if (canUse("bing", usageData)) {
+    try {
+      const bingResults = await performBingSearch(queryRaw);
+      addToHistory(sessionId, "bot", bingResults);
+      logChat(sessionId, queryRaw, bingResults);
+      return res.json({ answer: bingResults, sessionId });
+    } catch (err) {
+      console.error("Bing failed:", err.message);
+    }
+  }
 
-            const finalFallback =
-              "I'm sorry, I don't have that information at the moment. For more details, please contact Shiva Boys' Hindu College directly at (868) 372-8822 or email ShivaBoys.sec@fac.edu.tt.";
-            addToHistory(sessionId, "bot", finalFallback);
-            logChat(sessionId, queryRaw, finalFallback, bingError);
-            return res.json({ answer: finalFallback, sessionId });
-          }
-        }
-      } catch (error) {
-        console.error("Error in /api/ask:", error);
-        logChat(sessionId, queryRaw, null, error);
-        res.status(500).json({ error: "Server error during question handling." });
-      }
-    });
+  // Final fallback only if all above fail
+  const finalFallback =
+    "I'm sorry, I don't have that information at the moment. For more details, please contact Shiva Boys' Hindu College directly at (868) 372-8822 or email ShivaBoys.sec@fac.edu.tt.";
+  addToHistory(sessionId, "bot", finalFallback);
+  logChat(sessionId, queryRaw, finalFallback);
+  return res.json({ answer: finalFallback, sessionId });
+
+} catch (error) {
+  console.error("Error in /api/ask:", error);
+  logChat(sessionId, queryRaw, null, error);
+  res.status(500).json({ error: "Server error during question handling." });
+};
 
     app.listen(port, () => {
       console.log(`Server running on port ${port}`);
