@@ -519,7 +519,7 @@ Would you like to check the school’s website or ask someone directly?
         try {
           if (!canUse("brave", usageData)) throw new Error("Brave Search quota exceeded");
           const braveResults = await performBraveSearch(queryRaw);
-          const fallbackAnswer = I couldn't answer confidently, so I searched the web for you:\n\n${braveResults};
+          const fallbackAnswer = `I couldn't answer confidently, so I searched the web for you:\n\n${braveResults}`;
           addToHistory(sessionId, "bot", fallbackAnswer);
           logChat(sessionId, queryRaw, fallbackAnswer);
           return res.json({ answer: fallbackAnswer, sessionId });
@@ -530,7 +530,7 @@ Would you like to check the school’s website or ask someone directly?
           try {
             if (!canUse("bing", usageData)) throw new Error("Bing Search quota exceeded");
             const bingResults = await performBingSearch(queryRaw);
-            const fallbackAnswer = I couldn't find a confident answer, so I searched the web for you:\n\n${bingResults};
+            const fallbackAnswer = `I couldn't find a confident answer, so I searched the web for you:\n\n${bingResults}`;
             addToHistory(sessionId, "bot", fallbackAnswer);
             logChat(sessionId, queryRaw, fallbackAnswer);
             return res.json({ answer: fallbackAnswer, sessionId });
