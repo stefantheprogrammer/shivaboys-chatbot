@@ -403,7 +403,7 @@ const response = await fetch(
         for (const key in personalFacts) {
           const fact = personalFacts[key];
           if (fact.keywords.some((kw) => qNorm.includes(kw))) {
-            return The ${fact.description} is ${fact.name}.\n\n${fact.comment};
+            return `The ${fact.description} is ${fact.name}.\n\n${fact.comment}`;
           }
         }
         return null;
