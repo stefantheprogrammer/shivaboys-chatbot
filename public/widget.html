@@ -149,7 +149,9 @@ function appendMessage(role, text, isTemporary = false) {
   }
 
   chatMessages.appendChild(msg);
- chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: "smooth" });
+ setTimeout(() => {
+  chatMessages.scrollTo({ top: chatMessages.scrollHeight, behavior: "smooth" });
+}, 0);
   return msg; // Return the message element for further use
 }
 
