@@ -120,6 +120,34 @@
     #send-button:hover {
       background-color: #0055a5;
     }
+    .positive {
+  color: #2e7d32;
+  font-weight: 600;
+}
+.negative {
+  color: #c62828;
+  font-weight: 600;
+}
+.warning {
+  color: #ef6c00;
+  font-weight: 600;
+}
+.numbered-item {
+  display: block;
+  margin-left: 1.2em;
+  padding-left: 0.4em;
+  border-left: 3px solid #ccc;
+}
+.summary-highlight {
+  display: block;
+  margin-top: 1em;
+  padding: 0.8em;
+  background: #f0f4ff;
+  border-left: 5px solid #4285f4;
+  font-weight: 600;
+  color: #1a237e;
+  border-radius: 4px;
+}
   </style>
 </head>
 
@@ -168,17 +196,72 @@ function appendMessage(role, text, isTemporary = false) {
     // Store interval ID so we can clear later
     msg._dotInterval = interval;
   } else {
-    // Replace newlines with <br>
-    const formatted = text
-      .replace(/(?:\r\n|\r|\n)/g, "<br>")
-      .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-      .replace(/`(.*?)`/g, "<code>$1</code>");
-    msg.innerHTML = formatted;
+    msg.innerHTML = enhanceSageResponse(text);
   }
 
   chatMessages.appendChild(msg);
   chatMessages.scrollTop = chatMessages.scrollHeight;
   return msg; // Return the message element for further use
+}
+
+function enhanceSageResponse(text) {
+  // Step 1: Replace basic formatting markers
+  let enhanced = text
+    .replace(/(?:\r\n|\r|\n)/g, "<br>")
+    .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+    .replace(/`(.*?)`/g, "<code>$1</code>");
+
+  // Step 2: Process line by line
+  let lines = enhanced.split(/<br\s*\/?>/i).map(line => {
+    let trimmed = line.trim();
+
+    // Pros
+    if (/^\s*[-•]?\s*(pro|advantage|benefit|good)/i.test(trimmed)) {
+      return `✅ <span class="positive">${trimmed}</span>`;
+    }
+
+    // Cons
+    if (/^\s*[-•]?\s*(con|disadvantage|drawback|bad|limitation)/i.test(trimmed)) {
+      return `❌ <span class="negative">${trimmed}</span>`;
+    }
+
+    // Tip
+    if (/^\s*(tip|hint|suggestion):/i.test(trimmed)) {
+      return `💡 <strong>${trimmed}</strong>`;
+    }
+
+    // Warning
+    if (/^\s*(warning|caution|note):/i.test(trimmed)) {
+      return `⚠️ <strong class="warning">${trimmed}</strong>`;
+    }
+
+    // Step formatting
+    if (/^\s*(step\s*\d+)/i.test(trimmed)) {
+      return `➡️ ${trimmed}`;
+    }
+
+    // Numbered lists
+    if (/^\d+\.\s+/.test(trimmed)) {
+      return `<span class="numbered-item">${trimmed}</span>`;
+    }
+
+    return trimmed; // unchanged
+  });
+
+  // Step 3: Highlight summary if detected
+  if (lines.length > 1) {
+    let lastLine = lines[lines.length - 1];
+    if (
+      /^(in summary|overall|in conclusion|to sum up|summary)/i.test(
+        lastLine.replace(/<[^>]+>/g, "").trim()
+      ) ||
+      lastLine.length < 80
+    ) {
+      lines[lines.length - 1] = `<span class="summary-highlight">${lastLine}</span>`;
+    }
+  }
+
+  return lines.join("<br>");
 }
 
 async function sendMessage() {
@@ -188,7 +271,7 @@ async function sendMessage() {
   appendMessage("user", query);
   chatInput.value = "";
 
-  // Add temporary "thinking" message and keep reference to it
+  // Add temporary "thinking" message
   const thinkingMsg = appendMessage("bot", "", true);
 
   try {
@@ -200,15 +283,13 @@ async function sendMessage() {
 
     const data = await res.json();
 
-    // Stop dots animation & replace temporary message content
+    // Stop dots animation & replace with enhanced response
     clearInterval(thinkingMsg._dotInterval);
     thinkingMsg.dataset.temp = "";
     thinkingMsg.innerHTML = data.answer
-      ? data.answer
-          .replace(/(?:\r\n|\r|\n)/g, "<br>")
-          .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-          .replace(/`(.*?)`/g, "<code>$1</code>")
+      ? enhanceSageResponse(data.answer)
       : "Sorry, I couldn't understand that.";
+
   } catch (err) {
     clearInterval(thinkingMsg._dotInterval);
     thinkingMsg.dataset.temp = "";
@@ -217,7 +298,7 @@ async function sendMessage() {
   thinkingMsg.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-// Send button click calls sendMessage
+// Send button click
 sendButton.onclick = () => {
   sendMessage();
 };
@@ -230,6 +311,7 @@ chatInput.addEventListener("keydown", (event) => {
   }
 });
 </script>
+
 
 
 </body>
